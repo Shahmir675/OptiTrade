@@ -4,16 +4,21 @@ OptiTrade is an advanced stock trading application aimed at optimizing trading s
 
 ## Table of Contents
 
-1. [🚀 Features](#features)
-2. [📖 Background](#background)
-3. [🎯 Goals and Objectives](#goals-and-objectives)
-4. [🛠️ Tech Stack](#tech-stack)
-5. [📊 Diagrams](#diagrams)
-6. [🧪 Usage](#usage)
-7. [📈 Future Improvements](#future-improvements)
-8. [⚠️ Limitations](#limitations)
-9. [📄 License](#license)
-10. [📬 Contact](#contact)
+1. [Introduction](#introduction)
+2. [Features](#features)
+3. [Background](#background)
+4. [Goals and Objectives](#goals-and-objectives)
+5. [Tech Stack](#tech-stack)
+6. [Diagrams](#diagrams)
+7. [Usage](#usage)
+8. [Future Improvements](#future-improvements)
+9. [Limitations](#limitations)
+10. [License](#license)
+11. [Contact](#contact)
+
+## 👋 Introduction <a name="introduction"></a>
+
+In the fast-paced financial markets, the ability to make informed trading decisions is paramount. OptiTrade empowers traders by offering a comprehensive platform that combines real-time market data with intelligent portfolio optimization techniques. This innovative approach enables users to navigate market complexities and enhance their trading strategies effectively.
 
 ## 🚀 Features <a name="features"></a>
 - **Real-Time Market Data**: Access live updates for NASDAQ-listed stocks, ensuring you stay informed of market fluctuations.
