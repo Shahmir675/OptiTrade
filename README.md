@@ -2,6 +2,28 @@
 
 OptiTrade is an advanced stock trading application aimed at optimizing trading strategies through real-time market data and sophisticated portfolio management tools. The app integrates machine learning algorithms to adapt to dynamic market conditions, providing users with strategic insights and alerts for better decision-making.
 
+## Table of Contents
+
+1. [Introduction](#introduction)
+   - [Overview](#overview)
+   - [Background](#background)
+   - [Motivation](#motivation)
+   - [Problem Statement](#problem-statement)
+   - [Aims and Objectives](#aims-and-objectives)
+   - [Significance of the Study](#significance-of-the-study)
+2. [Literature Review](#literature-review)
+3. [Methodology](#methodology)
+   - [Proposed Solution](#proposed-solution)
+   - [Tools and Techniques](#tools-and-techniques)
+   - [Work Plan](#work-plan)
+4. [Data Flow Diagrams (DFD) & Entity-Relationship Diagram (ERD)](#data-flow-diagrams-dfd--entity-relationship-diagram-erd)
+5. [Limitations](#limitations)
+6. [Conclusion](#conclusion)
+7. [License](#license)
+8. [Contributing](#contributing)
+9. [Contact](#contact)
+
+
 ## 🚀 Features
 - **Real-Time Market Data**: Access live updates for NASDAQ-listed stocks, ensuring you stay informed of market fluctuations.
 - **Advanced Charting Tools**: Utilize various technical analysis tools, including moving averages, MACD, and candlestick charts, for informed trading decisions.
