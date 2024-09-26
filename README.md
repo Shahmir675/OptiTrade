@@ -19,7 +19,7 @@ OptiTrade is an advanced stock trading application aimed at optimizing trading s
 9. [📄 License](#license)
 10. [📬 Contact](#contact)
 
-## 🚀 Features
+## 🚀 Features <a name="features"></a>
 - **Real-Time Market Data**: Access live updates for NASDAQ-listed stocks, ensuring you stay informed of market fluctuations.
 - **Advanced Charting Tools**: Utilize various technical analysis tools, including moving averages, MACD, and candlestick charts, for informed trading decisions.
 - **Order Management**: Execute a variety of order types efficiently (market orders, limit orders, stop-loss) with an intuitive interface.
