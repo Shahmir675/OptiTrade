@@ -1,74 +1,62 @@
 # OptiTrade: Trading app using Deep Learning and Reinforcement Learning for portfolio optimization
 
-## Introduction
-In today’s global age, financial markets play a crucial role in the efficient allocation of capital among nations, corporations, and investors. They facilitate resource flow by connecting those who need funding with those who have capital to invest. Financial markets include stock markets, bond markets, commodity markets, cryptocurrency markets, and foreign exchange markets. These markets foster economic growth by providing liquidity, enabling risk management, and offering investment opportunities.
+OptiTrade is an advanced stock trading application aimed at optimizing trading strategies through real-time market data and sophisticated portfolio management tools. The app integrates machine learning algorithms to adapt to dynamic market conditions, providing users with strategic insights and alerts for better decision-making.
 
-### Stock Market
-The stock market is a key component of the financial system where shares of publicly traded companies are bought and sold. It allows companies to raise capital by issuing shares, representing ownership stakes. Investors purchase these shares with the expectation of earning returns through dividends and capital appreciation.
+## 🚀 Features
+- **Real-Time Market Data**: Access live updates for NASDAQ-listed stocks, ensuring you stay informed of market fluctuations.
+- **Advanced Charting Tools**: Utilize various technical analysis tools, including moving averages, MACD, and candlestick charts, for informed trading decisions.
+- **Order Management**: Execute a variety of order types efficiently (market orders, limit orders, stop-loss) with an intuitive interface.
+- **Portfolio Optimization**: Implement a modified Deep Q-Network (DQN) from Reinforcement Learning (RL) for dynamic asset allocation based on market trends.
+- **Alerts & Notifications**: Set up real-time alerts to notify you of significant market movements and portfolio changes.
+- **User-Friendly Interface**: Designed with both novice and experienced traders in mind, offering a smooth user experience.
 
-### Stock Trading
-Stock trading involves buying and selling shares in the stock market. It facilitates capital movement and allows investors to profit from market fluctuations. Successful stock trading requires tools and strategies to manage risks and optimize returns, emphasizing the need for advanced trading applications.
+## 📖 Background
+In the fast-paced financial landscape, efficient capital allocation is critical. Traditional investment models often rely on static historical data, which may not respond well to market volatility. OptiTrade aims to revolutionize investment management by incorporating machine learning techniques that allow for adaptive strategies in real-time environments.
 
-### Portfolio Optimization
-Portfolio optimization determines the best mix of assets to achieve the highest possible return for a given risk level. Using Modern Portfolio Theory (MPT), investors diversify portfolios to manage risk effectively. Mathematical models and algorithms further refine portfolio strategies to improve performance.
+### Traditional Investment Limitations
+- Static portfolio management strategies that fail to adapt to real-time data.
+- Emotional decision-making processes that can cloud judgment during trading.
+- Overfitting in traditional models that do not generalize to new market conditions.
 
-## Overview
-This project aims to develop **OptiTrade**, a comprehensive stock trading app integrating advanced features for effective investment management. The app will provide real-time market data for NASDAQ-listed stocks, advanced charting tools, order management, portfolio management, and optimization. It will also offer alerts on market movements and provide strategic suggestions for better investment decisions.
+## 🎯 Goals and Objectives
+- Develop a stock trading app specifically for NASDAQ stocks.
+- Integrate advanced tools for portfolio management and optimization.
+- Provide users with actionable insights and alerts to enhance trading strategies.
 
-## Background
-Traditional investment models, such as Modern Portfolio Theory (MPT), emphasize diversification to balance risk and return. However, these methods often rely on historical data and static assumptions, limiting their adaptability to dynamic markets.
+## 🛠️ Tech Stack
+- **Frontend**: Built using React, Next.js for web applications, and React Native for mobile applications, ensuring a responsive and seamless user experience across devices.
+- **Backend**: Server-side logic developed with Node.js and Express.js, alongside PostgreSQL for robust database management.
+- **API Development**: Utilize Django Rest Framework or FastAPI to create secure and efficient APIs for data interaction.
+- **AI Components**: Employ PyTorch for developing machine learning models, including RL and LSTM for predictive analytics and portfolio rebalancing.
 
-## Motivation
-This project addresses the limitations of traditional investment methods by offering a robust solution for managing investments. It aims to overcome challenges such as emotional decision-making, market volatility, and information overload by providing real-time strategic insights.
+## 📊 Diagrams
+### Data Flow Diagrams (DFD)
+- **Level 0 DFD**:
+- **Level 1 DFD**:
 
-## Problem Statement
-Traditional portfolio optimization relies on historical data and static models, which may underperform in dynamic market conditions. Machine learning (ML) and deep learning (DL) show promise but face challenges in data requirements and interpretability.
+### Entity Relationship Diagram (ERD)
+- **ERD**: 
 
-## Aims and Objectives
-The primary objectives of OptiTrade include:
-- Real-time market data for NASDAQ stocks.
-- Advanced charting tools for technical analysis.
-- Order management with features like market orders, limit orders, and stop-loss.
-- Portfolio management and optimization tools.
-- Alerts on market movements and portfolio updates.
-- Strategic suggestions for improving investment decisions.
-- A user-friendly interface for both novice and veteran traders.
+## 🧪 Usage
+Once the app is set up, users can:
+1. Create an account to access personalized features.
+2. Monitor real-time market data and analyze stocks.
+3. Execute trades using the order management system.
+4. Utilize portfolio optimization tools for better asset allocation.
 
-## Significance of the Study
-This project addresses the shortcomings of traditional investment models and offers a practical solution for managing investments in dynamic markets. The app aims to improve decision-making, risk management, and investment performance through advanced features and optimization techniques.
+## 📈 Future Improvements
+- Expand to support additional stock exchanges beyond NASDAQ.
+- Implement advanced machine learning models for improved accuracy in predictions.
+- Enhance user interface and experience based on user feedback and testing.
 
-## Literature Review
-Modern Portfolio Theory (MPT), introduced by Harry Markowitz, emphasizes portfolio diversification to manage risk. Strategies like Strategic Asset Allocation (SAA) and Tactical Asset Allocation (TAA) are used to balance long-term investment goals with short-term market opportunities. Methods like mean-variance optimization and the Capital Asset Pricing Model (CAPM) extend these ideas but face limitations in dynamic markets.
+## ⚠️ Limitations
+- **Regulatory Approval**: Implementing real trading functionalities requires approval from financial regulatory bodies, which can be a lengthy process.
+- **Brokerage and Transaction Costs**: Establishing a live trading environment incurs substantial costs, which are outside the scope of this project.
+- **Paper Trading**: Currently, the app employs simulated trading for practice without financial risk, which does not capture the emotional dynamics of live trading.
+- **Synthetic Order Books**: Transactions performed in the app will be virtual, and while they mimic real-world scenarios, they may not fully reflect market complexities.
 
-Machine learning (ML) and artificial intelligence (AI) methods have advanced portfolio management. Techniques such as neural networks, genetic algorithms, and reinforcement learning (RL) allow for dynamic adaptation to market conditions, improving decision-making and portfolio optimization.
+## 📄 License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## Methodology
-
-### Kanban Methodology for Project Management
-OptiTrade will implement the Kanban methodology using Notion for project management. The board will include columns such as Backlog, To Do, In Progress, Testing, Review, and Done to track tasks, from frontend features like chart design to backend API connectivity and AI model development.
-
-### Proposed Solution
-OptiTrade offers real-time market data, advanced charting tools, and dynamic portfolio management using a modified Deep Q-Network (DQN) and Long Short-Term Memory (LSTM) models. The app also provides alerts, notifications, and strategic insights to help users manage risks and optimize returns.
-
-### Tools and Techniques
-- **Frontend Development**: React, Next.js, React Native
-- **Backend Development**: Node.js, Express.js, PostgreSQL
-- **API Development**: Django Rest Framework (DRF) or FastAPI
-- **AI Components**: PyTorch, LSTM models, DQN for portfolio optimization
-
-### Work Plan
-The project will be executed in six phases:
-1. **Project Initialization**: Define scope, objectives, and team structure.
-2. **Research and Design**: Conduct literature review, feasibility analysis, and design system architecture.
-3. **Development**: Frontend, backend, and AI components development.
-4. **Integration and Testing**: Integrate components and perform functional, performance, and user acceptance testing.
-5. **Deployment and Evaluation**: Deploy the app, collect feedback, and optimize functionality.
-6. **Documentation and Final Report**: Prepare user manuals, technical specifications, and final project report.
-
-## Limitations
-- **Regulatory Approval**: Real-world stock trading requires regulatory approval.
-- **Brokerage and Transaction Costs**: Real-world transactions incur costs, so the app will utilize paper trading for testing.
-- **Synthetic Order Books**: Order books in the app will be synthetic, mirroring real market conditions but not fully replicating live trading complexities.
-
-## Conclusion
-OptiTrade addresses the limitations of traditional investment models by incorporating real-time data, dynamic portfolio optimization, and advanced AI techniques like DQN and LSTM. By offering comprehensive tools for portfolio management, the app supports investors in making informed decisions, managing risks, and optimizing returns.
+## 📬 Contact
+For inquiries, reach out at [shahmirkhan9181@gmail.com](mailto:shahmirkhan9181@gmail.com).
