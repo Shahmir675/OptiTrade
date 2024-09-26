@@ -1,4 +1,4 @@
-# OptiTrade: Trading app using Deep Learning and Reinforcement Learning for portfolio optimization
+# OptiTrade: Trading app using Deep Learning and Reinforcement Learning for Portfolio Optimization
 
 OptiTrade is an advanced stock trading application aimed at optimizing trading strategies through real-time market data and sophisticated portfolio management tools. The app integrates machine learning algorithms to adapt to dynamic market conditions, providing users with strategic insights and alerts for better decision-making.
 
