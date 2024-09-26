@@ -4,24 +4,18 @@ OptiTrade is an advanced stock trading application aimed at optimizing trading s
 
 ## Table of Contents
 
-1. [Introduction](#introduction)
-   - [Overview](#overview)
-   - [Background](#background)
-   - [Motivation](#motivation)
-   - [Problem Statement](#problem-statement)
-   - [Aims and Objectives](#aims-and-objectives)
-   - [Significance of the Study](#significance-of-the-study)
-2. [Literature Review](#literature-review)
-3. [Methodology](#methodology)
-   - [Proposed Solution](#proposed-solution)
-   - [Tools and Techniques](#tools-and-techniques)
-   - [Work Plan](#work-plan)
-4. [Data Flow Diagrams (DFD) & Entity-Relationship Diagram (ERD)](#data-flow-diagrams-dfd--entity-relationship-diagram-erd)
-5. [Limitations](#limitations)
-6. [Conclusion](#conclusion)
-7. [License](#license)
-8. [Contributing](#contributing)
-9. [Contact](#contact)
+1. [🚀 Features](#features)
+2. [📖 Background](#background)
+3. [🎯 Goals and Objectives](#goals-and-objectives)
+4. [🛠️ Tech Stack](#tech-stack)
+5. [📊 Diagrams](#diagrams)
+   - [Data Flow Diagrams (DFD)](#data-flow-diagrams-dfd)
+   - [Entity Relationship Diagram (ERD)](#entity-relationship-diagram-erd)
+6. [🧪 Usage](#usage)
+7. [📈 Future Improvements](#future-improvements)
+8. [⚠️ Limitations](#limitations)
+9. [📄 License](#license)
+10. [📬 Contact](#contact)
 
 
 ## 🚀 Features
