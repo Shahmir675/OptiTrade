@@ -27,6 +27,9 @@ OptiTrade addresses these challenges by incorporating machine learning algorithm
 The application offers advanced features like customizable charting tools, order management systems, and portfolio optimization techniques. By employing a modified Deep Q-Network (DQN), OptiTrade helps users manage their investments more effectively, allowing for strategic asset allocation based on real-time market trends.
 
 ## 🚀 Features <a name="features"></a>
+
+The key features of OptiTrade include the following:
+
 - **Real-Time Market Data**: Access live updates for NASDAQ-listed stocks, ensuring users stay informed of market fluctuations.
 - **Advanced Charting Tools**: Utilize various technical analysis tools, including moving averages, MACD, and candlestick charts, for informed trading decisions.
 - **Order Management**: Execute a variety of order types efficiently (market orders, limit orders, stop-loss) with an intuitive interface.
