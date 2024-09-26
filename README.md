@@ -4,17 +4,17 @@ OptiTrade is an advanced stock trading application aimed at optimizing trading s
 
 ## Table of Contents
 
-1. [Introduction](#introduction)
-2. [Features](#features)
-3. [Background](#background)
-4. [Goals and Objectives](#goals-and-objectives)
-5. [Tech Stack](#tech-stack)
-6. [Diagrams](#diagrams)
-7. [Usage](#usage)
-8. [Future Improvements](#future-improvements)
-9. [Limitations](#limitations)
-10. [License](#license)
-11. [Contact](#contact)
+1. [👋 Introduction](#introduction)
+2. [🚀 Features](#features)
+3. [📖 Background](#background)
+4. [🎯 Goals and Objectives](#goals-and-objectives)
+5. [🛠️ Tech Stack](#tech-stack)
+6. [📊 Diagrams](#diagrams)
+7. [🧪 Usage](#usage)
+8. [📈 Future Improvements](#future-improvements)
+9. [⚠️ Limitations](#limitations)
+10. [📄 License](#license)
+11. [📬 Contact](#contact)
 
 ## 👋 Introduction <a name="introduction"></a>
 
