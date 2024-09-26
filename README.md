@@ -68,11 +68,11 @@ The tech stack for OptiTrade consists of the following tools:
 
 ## 📊 Diagrams <a name="diagrams"></a>
 ### Data Flow Diagrams (DFD)
-- **Level 0 DFD**: [Link to Level 0 DFD Diagram](#)  
-- **Level 1 DFD**: [Link to Level 1 DFD Diagram](#)
+- **Level 0 DFD**: [DFD_Level_0.png]  
+- **Level 1 DFD**: [DFD_Level_1.png]
 
 ### Entity Relationship Diagram (ERD)
-- **ERD**: [Link to ERD Diagram](#)
+- **ERD**: [ERD.png]
 
 ## 🧪 Usage <a name="usage"></a>
 Once the app is set up, users can:
