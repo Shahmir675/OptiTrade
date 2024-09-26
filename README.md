@@ -31,7 +31,7 @@ In the fast-paced financial landscape, efficient capital allocation is critical.
 - Emotional decision-making processes that can cloud judgment during trading.
 - Overfitting in traditional models that do not generalize to new market conditions.
 
-## 🎯 Goals and Objectives
+## 🎯 Goals and Objectives <a name="goals-and-objectives"></a>
 - Develop a stock trading app specifically for NASDAQ stocks.
 - Integrate advanced tools for portfolio management and optimization.
 - Provide users with actionable insights and alerts to enhance trading strategies.
