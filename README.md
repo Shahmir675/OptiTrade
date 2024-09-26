@@ -1,4 +1,4 @@
-# OptiTrade: Trading app using Deep Learning and Reinforcement Learning for Portfolio Optimization
+# OptiTrade: Trading App Using Deep Learning and Reinforcement Learning for Portfolio Optimization
 
 OptiTrade is an advanced stock trading application aimed at optimizing trading strategies through real-time market data and sophisticated portfolio management tools. The app integrates machine learning algorithms to adapt to dynamic market conditions, providing users with strategic insights and alerts for better decision-making.
 
@@ -9,14 +9,15 @@ OptiTrade is an advanced stock trading application aimed at optimizing trading s
 3. [🎯 Goals and Objectives](#goals-and-objectives)
 4. [🛠️ Tech Stack](#tech-stack)
 5. [📊 Diagrams](#diagrams)
-   - [Data Flow Diagrams (DFD)](#data-flow-diagrams-dfd)
-   - [Entity Relationship Diagram (ERD)](#entity-relationship-diagram-erd)
+   - [Data Flow Diagrams (DFD)](#data-flow-diagrams)
+     - [Level 0 DFD](#level-0-dfd)
+     - [Level 1 DFD](#level-1-dfd)
+   - [Entity Relationship Diagram (ERD)](#entity-relationship-diagram)
 6. [🧪 Usage](#usage)
 7. [📈 Future Improvements](#future-improvements)
 8. [⚠️ Limitations](#limitations)
 9. [📄 License](#license)
 10. [📬 Contact](#contact)
-
 
 ## 🚀 Features
 - **Real-Time Market Data**: Access live updates for NASDAQ-listed stocks, ensuring you stay informed of market fluctuations.
@@ -47,11 +48,11 @@ In the fast-paced financial landscape, efficient capital allocation is critical.
 
 ## 📊 Diagrams
 ### Data Flow Diagrams (DFD)
-- **Level 0 DFD**:
-- **Level 1 DFD**:
+- **Level 0 DFD**: [Link to Level 0 DFD Diagram](#)  <!-- Add link here -->
+- **Level 1 DFD**: [Link to Level 1 DFD Diagram](#)  <!-- Add link here -->
 
 ### Entity Relationship Diagram (ERD)
-- **ERD**: 
+- **ERD**: [Link to ERD Diagram](#)  <!-- Add link here -->
 
 ## 🧪 Usage
 Once the app is set up, users can:
