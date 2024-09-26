@@ -1,4 +1,4 @@
-# OptiTrade - Trading app using Deep Learning and Reinforcement Learning for portfolio optimization
+# OptiTrade: Trading app using Deep Learning and Reinforcement Learning for portfolio optimization
 
 ## 1. Introduction
 In today’s global age, financial markets play a crucial role in the efficient allocation of capital among nations, corporations, and investors. They facilitate resource flow by connecting those who need funding with those who have capital to invest. Financial markets include stock markets, bond markets, commodity markets, cryptocurrency markets, and foreign exchange markets. These markets foster economic growth by providing liquidity, enabling risk management, and offering investment opportunities.
