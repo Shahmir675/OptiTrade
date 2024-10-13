@@ -1,4 +1,4 @@
-![Alt text](img/logo2.png)
+![Alt text](img/logo.png)
 
 # OptiTrade: Trading App Using Deep Learning and Reinforcement Learning for Portfolio Optimization
 
