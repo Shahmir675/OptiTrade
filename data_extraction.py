@@ -109,7 +109,7 @@ def add_logos_by_ticker(df):
         time.sleep(0.5)
         return logo
 
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=3) as executor:
         logo_urls = list(tqdm(executor.map(fetch_with_delay, tickers), total=len(tickers), desc="Fetching logos"))
 
     df['logo_url'] = logo_urls
