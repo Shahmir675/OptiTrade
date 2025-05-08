@@ -1,4 +1,5 @@
 .env
-__pycache__/
 *.pyt
-
+**__pycache__**
+app/static/news.json
+app/static/stocks.json
