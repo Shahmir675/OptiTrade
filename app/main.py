@@ -14,6 +14,7 @@ from app.routers import (
     transactions,
     orders,
     general,
+    indices
 )
 
 app = FastAPI(docs_url="/docs", redoc_url="/redoc")
@@ -41,4 +42,5 @@ app.include_router(watchlist.router)
 app.include_router(portfolio_actions.router)
 app.include_router(transactions.router)
 app.include_router(orders.router)
+app.include_router(indices.router)
 app.include_router(general.router)
