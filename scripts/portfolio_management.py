@@ -119,7 +119,7 @@ def store_limit_order(user_id, symbol, quantity, limit_price, order_type):
                 return f"Limit order placed: Sell {quantity} shares of {symbol} at or above {limit_price} per share."
 
 def store_stop_loss_order(user_id, symbol, quantity, stop_price, order_type):
-    response = requests.get('https://archlinux.tail9024a4.ts.net/prices')
+    response = requests.get('https://archlinux.tail9024a4.ts.net/stocks/prices')
     data = response.json()
     current_price = [stock_info['price'] for stock_info in data if stock_info['symbol'] == symbol][0]
     current_price =  Decimal(str(current_price))
@@ -181,7 +181,7 @@ def process_stop_loss_orders():
             for order in pending_orders:
                 order_id, user_id, symbol, order_type, stop_price, remaining_quantity = order
                 
-                response = requests.get('https://archlinux.tail9023a4.ts.net/prices')
+                response = requests.get('https://archlinux.tail9023a4.ts.net/stocks/prices')
                 data = response.json()
                 current_price = [stock_info['price'] for stock_info in data if stock_info['symbol'] == symbol][0]
                 current_price =  Decimal(str(current_price))
@@ -213,7 +213,7 @@ def process_stop_loss_orders():
                     continue
 
 def store_take_profit_order(user_id, symbol, quantity, take_profit_price, order_type):
-    response = requests.get('https://archlinux.tail9023a4.ts.net/prices')
+    response = requests.get('https://archlinux.tail9023a4.ts.net/stocks/prices')
     data = response.json()
     current_price = [stock_info['price'] for stock_info in data if stock_info['symbol'] == symbol][0]
     current_price =  Decimal(str(current_price))
@@ -271,7 +271,7 @@ def process_take_profit_orders():
             for order in pending_orders:
                 order_id, user_id, symbol, order_type, take_profit_price, remaining_quantity = order
 
-                response = requests.get('https://archlinux.tail9023a4.ts.net/prices')
+                response = requests.get('https://archlinux.tail9023a4.ts.net/stocks/prices')
                 data = response.json()
                 current_price = [stock_info['price'] for stock_info in data if stock_info['symbol'] == symbol][0]
                 current_price =  Decimal(str(current_price))
@@ -304,7 +304,7 @@ def process_take_profit_orders():
 
 def buy_stock(user_id, symbol, quantity, order_type='market', limit_price=None):
     with psycopg2.connect(**db_config) as conn:
-        response = requests.get('https://archlinux.tail9023a4.ts.net/prices')
+        response = requests.get('https://archlinux.tail9023a4.ts.net/stocks/prices')
         data = response.json()
         current_price = [stock_info['price'] for stock_info in data if stock_info['symbol'] == symbol][0]
         current_price =  Decimal(str(current_price))
@@ -326,6 +326,8 @@ def buy_stock(user_id, symbol, quantity, order_type='market', limit_price=None):
             """
             cursor.execute(portfolio_query, (user_id, symbol))
             portfolio_row = cursor.fetchone()
+
+            print(f"Order type: {order_type}")
 
             if order_type == 'market':
                 # if not is_trading_time():
@@ -452,7 +454,7 @@ def buy_stock(user_id, symbol, quantity, order_type='market', limit_price=None):
 
 def sell_stock(user_id, symbol, quantity, order_type='market', limit_price=None):
     with psycopg2.connect(**db_config) as conn:
-        response = requests.get('https://archlinux.tail9023a4.ts.net/prices')
+        response = requests.get('https://archlinux.tail9023a4.ts.net/stocks/prices')
         data = response.json()
         current_price = [stock_info['price'] for stock_info in data if stock_info['symbol'] == symbol][0]
         current_price =  Decimal(str(current_price))
