@@ -90,6 +90,24 @@ class PortfolioResponseItem(BaseModel):
 class PortfolioResponse(BaseModel):
     portfolio: List[PortfolioResponseItem]
 
+class PortfolioHistoryItem(BaseModel):
+    user_id: int
+    symbol: str
+    quantity: Optional[int] = None
+    average_price: Optional[Decimal] = None
+    current_value: Optional[Decimal] = None
+    total_invested: Optional[Decimal] = None
+    snapshot_date: datetime
+
+    class Config:
+        orm_mode = True
+        json_encoders = {
+            Decimal: lambda v: float(v) if v is not None else None,
+        }
+
+class PortfolioHistoryResponse(BaseModel):
+    history: List[PortfolioHistoryItem]
+
 class TransactionResponse(BaseModel):
     id: int
     user_id: int
