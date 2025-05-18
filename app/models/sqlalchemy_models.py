@@ -47,6 +47,22 @@ class Portfolio(Base):
         CheckConstraint('average_price >= 0')
     )
 
+class PortfolioHistory(Base):
+    __tablename__ = 'portfolio_history'
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    symbol = Column(String(6))
+    quantity = Column(Integer)
+    average_price = Column(DECIMAL(10, 2))
+    current_value = Column(DECIMAL(10, 2))
+    total_invested = Column(DECIMAL(10, 2))
+    snapshot_date = Column(TIMESTAMP, nullable=False)
+
+
+    __table_args__ = (
+        PrimaryKeyConstraint('user_id', 'symbol', 'snapshot_date', name='portfolio_history_pkey'),
+    )
+
 class Dividend(Base):
     __tablename__ = "dividends"
 
