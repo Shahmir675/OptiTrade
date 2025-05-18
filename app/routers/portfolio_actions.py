@@ -4,6 +4,7 @@ from sqlalchemy.future import select
 from app.models import sqlalchemy_models as sql_models
 from app.models import pydantic_models as pyd_models
 from app.core.dependencies import get_db
+from typing import Optional, List
 import os
 import sys
 
@@ -70,3 +71,23 @@ async def get_portfolio(
             total_invested=p.total_invested
         ))
     return pyd_models.PortfolioResponse(portfolio=portfolio_items)
+
+@router.get("/history/{user_id}", response_model=List[pyd_models.PortfolioHistoryItem], tags=["Portfolio History"])
+async def get_portfolio_history(
+    user_id: int,
+    symbol: Optional[str] = None,
+    session: AsyncSession = Depends(get_db)
+):
+    query = select(sql_models.PortfolioHistory).where(sql_models.PortfolioHistory.user_id == user_id)
+    if symbol:
+        query = query.where(sql_models.PortfolioHistory.symbol == symbol.upper())
+
+    query = query.order_by(sql_models.PortfolioHistory.snapshot_date.desc())
+
+    result = await session.execute(query)
+    history_items = result.scalars().all()
+
+    if not history_items:
+        return []
+
+    return history_items
