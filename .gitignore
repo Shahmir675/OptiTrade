@@ -3,4 +3,4 @@
 **__pycache__**
 app/static/news.json
 app/static/stocks.json
-app/sql/*
+sql/*
