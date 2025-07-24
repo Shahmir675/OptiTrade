@@ -132,3 +132,15 @@ class UserResponse(BaseModel):
     email: EmailStr
     class Config:
         orm_mode = True
+
+class FeedbackCreate(BaseModel):
+    feedback_message: str
+
+class FeedbackOut(BaseModel):
+    feedback_id: int
+    feedback_message: str
+    created_at: datetime
+    feedback_status: str
+
+    class Config:
+        orm_mode = True

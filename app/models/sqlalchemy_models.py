@@ -1,4 +1,17 @@
-from sqlalchemy import Column, DECIMAL, Integer, String, Float, ForeignKey, UniqueConstraint, PrimaryKeyConstraint, CheckConstraint, TIMESTAMP, Boolean
+from sqlalchemy import (
+    Column, 
+    DECIMAL, 
+    Integer, 
+    String, 
+    Float, 
+    ForeignKey, 
+    UniqueConstraint, 
+    PrimaryKeyConstraint, 
+    CheckConstraint, 
+    TIMESTAMP, 
+    Boolean,
+    Text
+)
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.base import Base
@@ -110,3 +123,11 @@ class Order(Base):
     order_status = Column(Boolean)
     filled_quantity = Column(Integer)
     remaining_quantity = Column(Integer)
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+
+    feedback_id = Column(Integer, primary_key=True, index=True)
+    feedback_message = Column(Text, nullable=False)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    feedback_status = Column(String(20), default="todo")
