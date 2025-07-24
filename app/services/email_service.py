@@ -1,4 +1,5 @@
 import smtplib
+import asyncio
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from fastapi import HTTPException
@@ -33,3 +34,11 @@ async def send_password_reset_otp_email(email: str):
     subject = "Your Password Reset OTP for OptiTrade"
     body = f"Dear User,\n\nYour password reset OTP for OptiTrade is: {otp}. This OTP will expire in 5 minutes.\n\nIf you did not request this, please ignore this email.\n\nBest regards,\nOptiTrade Support"
     await _send_email(email, subject, body)
+
+async def send_feedback_confirmation(message: str):
+    subject = "New Feedback Submitted"
+    body = f"You received new feedback:\n\n{message}"
+    email = settings.GMAIL_ACCOUNT
+
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _send_email, email, subject, body)
