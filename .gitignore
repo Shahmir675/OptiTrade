@@ -4,3 +4,4 @@
 app/static/news.json
 app/static/stocks.json
 sql/*
+env
