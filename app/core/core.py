@@ -12,9 +12,9 @@ class Settings:
     SMTP_SERVER: str = os.getenv("SMTP_SERVER")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", 587))
     
-    STOCKS_JSON_PATH: str = os.getenv("STOCKS_JSON_PATH", "stocks.json")
-    NEWS_JSON_PATH: str = os.getenv("NEWS_JSON_PATH", "news.json")
-    STATUS_CODES_DIR: str = os.getenv("STATUS_CODES_DIR", "app/static/status_codes/")
+    STOCKS_JSON_PATH: str = os.getenv("STOCKS_JSON_PATH", "../static/stocks.json")
+    NEWS_JSON_PATH: str = os.getenv("NEWS_JSON_PATH", "../static/news.json")
+    STATUS_CODES_DIR: str = os.getenv("STATUS_CODES_DIR", "../static/status_codes/")
     
     JWT_SECRET: str = os.getenv("JWT_SECRET_KEY", secrets.token_hex(16))
 
