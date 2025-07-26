@@ -27,7 +27,7 @@ def get_news(ticker):
     return news_df
 
 def main():
-    file_path = '/home/shahmir/Backend/OptiTrade/app/static/stocks.json'
+    file_path = 'app/static/stocks.json'
 
     with open(file_path, 'r') as file:
         data = [json.loads(line) for line in file]
@@ -59,7 +59,7 @@ def main():
     missing_tickers = list(set(tickers) - set(combined_df['Ticker'].unique()))
     print(f"Missing tickers (no news fetched): {missing_tickers}")
 
-    output_file_path = '/home/shahmir/Backend/OptiTrade/app/static/news.json'
+    output_file_path = 'app/static/news.json'
     combined_df.to_json(output_file_path, orient='records', lines=True)
 
     print(f"News data saved to {output_file_path}")

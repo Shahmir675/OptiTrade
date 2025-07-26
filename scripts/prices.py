@@ -24,7 +24,7 @@ USER_AGENTS = [
 price_data = []
 stocks = []
 
-path = '/home/shahmir/Backend/OptiTrade/app/static/stocks.json'
+path = 'app/static/stocks.json'
 with open(path) as f:
     for line in f:
         stock = json.loads(line)

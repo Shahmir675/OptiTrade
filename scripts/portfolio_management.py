@@ -24,7 +24,7 @@ db_config = {
 }
 
 stocks = []
-with open(r'/home/shahmir/Backend/OptiTrade/app/static/stocks.json', 'r') as file:
+with open(r'app/static/stocks.json', 'r') as file:
     for line in file:
         stock = json.loads(line)
         stocks.append(stock)

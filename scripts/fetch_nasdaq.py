@@ -254,7 +254,7 @@ if __name__ == '__main__':
                                                             'logo_dark', 'logo_high_light', 'logo_high_dark', 
                                                             'clearbit_logo']]
         df_with_logos_and_info = df_with_logos_and_info.sort_values(by='symbol').reset_index(drop=True)
-        path = '/home/shahmir/Backend/OptiTrade/app/static/stocks.json'
+        path = 'app/static/stocks.json'
         df_with_logos_and_info.to_json(path, index=False, orient='records', lines=True)
         
         logging.info(f"Data saved to {path}")
