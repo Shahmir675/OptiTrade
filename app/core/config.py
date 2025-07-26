@@ -7,6 +7,8 @@ load_dotenv()
 class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL")
     GMAIL_ACCOUNT: str = os.getenv("GMAIL_ACCOUNT")
+    FEEDBACK_CC_EMAIL: str  = os.getenv("FEEDBACK_CC_EMAIL")
+
     GMAIL_PASSWORD: str = os.getenv("GMAIL_PASSWORD")
     ALIAS_EMAIL: str = os.getenv("ALIAS_EMAIL")
     SMTP_SERVER: str = os.getenv("SMTP_SERVER")
