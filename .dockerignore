@@ -1,0 +1,9 @@
+.env
+.git
+*.db
+*.log
+.idea/
+.vscode/
+tests/
+*.md
+env/

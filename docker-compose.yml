@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:17
+    container_name: optitrade-db
+    restart: always
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: OptiTrade
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: optitrade-backend
+    restart: always
+    depends_on:
+      - db
+    expose:
+      - "8001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL
+    command: ["uv", "run", "/app/run.pyc"]
+
+  nginx:
+    image: nginx:latest
+    container_name: optitrade-nginx
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - backend
+    volumes:
+      - ./nginx/opti-server.conf:/etc/nginx/conf.d/opti-server.conf:ro
+      - ./app/static:/home/shahmir/Backend/OptiTrade/app/static:ro
+
+volumes:
+  postgres_data:
+    name: optitrade_postgres_data
