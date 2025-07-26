@@ -101,7 +101,7 @@ class Transaction(Base):
     order_type = Column(String(10), nullable=False)
     limit_price = Column(DECIMAL(10, 2))
     transaction_type = Column(String(4), nullable=False)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    created_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(PAKISTAN_TIMEZONE))    
     price_per_share = Column(DECIMAL(10, 2), nullable=False)
     total_price = Column(DECIMAL(10, 2), nullable=False)
 
@@ -129,5 +129,5 @@ class Feedback(Base):
 
     feedback_id = Column(Integer, primary_key=True, index=True)
     feedback_message = Column(Text, nullable=False)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    created_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(PAKISTAN_TIMEZONE))    
     feedback_status = Column(String(20), default="todo")
