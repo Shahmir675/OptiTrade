@@ -5,16 +5,18 @@
 .. moduleauthor:: Tianning Li <ltianningli@gmail.com>
 """
 
-from datetime import datetime, date
 import json
+from datetime import date, datetime
+
 import pandas as pd
 import requests
+
 from finvizfinance.util import (
-    web_scrap,
+    format_datetime,
+    headers,
     image_scrap,
     number_covert,
-    headers,
-    format_datetime,
+    web_scrap,
 )
 
 QUOTE_URL = "https://finviz.com/quote.ashx?t={ticker}"
@@ -278,7 +280,7 @@ class finvizfinance:
         """
         fullview_news_outer = self.soup.find("table", class_="fullview-news-outer")
         rows = fullview_news_outer.find_all("tr")
-        
+
         frame = []
         last_date = ""
         for row in rows:
@@ -297,7 +299,12 @@ class finvizfinance:
 
                 news_time = format_datetime(news_time)
 
-                info_dict = {"Date": news_time, "Title": title, "Link": link, "Source": source}
+                info_dict = {
+                    "Date": news_time,
+                    "Title": title,
+                    "Link": link,
+                    "Source": source,
+                }
                 frame.append(info_dict)
             except AttributeError:
                 pass

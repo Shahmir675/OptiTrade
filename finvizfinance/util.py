@@ -6,12 +6,12 @@
 """
 
 import sys
-import requests
+from datetime import datetime
+
 import pandas as pd
-from bs4 import BeautifulSoup
-from datetime import datetime, date
 import pytz
-import time
+import requests
+from bs4 import BeautifulSoup
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) \
@@ -58,7 +58,9 @@ def image_scrap(url, ticker, out_dir):
         out_dir(str): output directory
     """
     try:
-        r = session.get(url, stream=True, headers=headers, timeout=10, proxies= proxy_dict)
+        r = session.get(
+            url, stream=True, headers=headers, timeout=10, proxies=proxy_dict
+        )
         r.raise_for_status()
         r.raw.decode_content = True
         if len(out_dir) != 0:
@@ -161,25 +163,25 @@ def number_covert(num):
 
 
 def format_datetime(date_str):
-    time_str = date_str.split(' ')[-1]
-    time_in_24hr = datetime.strptime(time_str, '%I:%M%p').strftime('%H:%M')
-    
+    time_str = date_str.split(" ")[-1]
+    time_in_24hr = datetime.strptime(time_str, "%I:%M%p").strftime("%H:%M")
+
     if date_str.lower().startswith("today"):
-        us_timezone = pytz.timezone('US/Eastern')
+        us_timezone = pytz.timezone("US/Eastern")
         today = datetime.now(us_timezone)
-        
+
         hour, minute = map(int, time_in_24hr.split(":"))
-        
+
         result = datetime(today.year, today.month, today.day, hour, minute)
     else:
         result = datetime.strptime(date_str, "%b-%d-%y %I:%M%p")
-    
-    us_timezone = pytz.timezone('US/Eastern')
+
+    us_timezone = pytz.timezone("US/Eastern")
     result = us_timezone.localize(result)
-    
-    pkt_timezone = pytz.timezone('Asia/Karachi')
+
+    pkt_timezone = pytz.timezone("Asia/Karachi")
     result_in_pkt = result.astimezone(pkt_timezone)
-    
+
     return result_in_pkt.strftime("%Y-%m-%d %H:%M:%S")
 
 

@@ -1,24 +1,26 @@
-import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
 from app.db.base import Base
 from app.db.session import engine
-from app.services.price_feed_service import start_price_fetching_task
-from app.services.data_service import load_initial_data
 from app.routers import (
     auth,
-    users,
-    stocks,
-    watchlist,
-    portfolio_actions,
-    transactions,
-    orders,
+    feedback,
     general,
     indices,
-    feedback
+    orders,
+    portfolio_actions,
+    stocks,
+    transactions,
+    users,
+    watchlist,
 )
+from app.services.data_service import load_initial_data
 
 app = FastAPI(docs_url="/docs", redoc_url="/redoc")
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,13 +30,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.on_event("startup")
 async def startup_event():
     load_initial_data()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     # asyncio.create_task(start_price_fetching_task())
+
 
 app.include_router(auth.router)
 app.include_router(users.router)

@@ -1,8 +1,8 @@
 from finvizfinance.constants import (
-    signal_dict,
+    CUSTOM_SCREENER_COLUMNS,
     filter_dict,
     order_dict,
-    CUSTOM_SCREENER_COLUMNS,
+    signal_dict,
 )
 
 

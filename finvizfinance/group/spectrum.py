@@ -5,9 +5,9 @@
 .. moduleauthor:: Tianning Li <ltianningli@gmail.com>
 """
 
-from finvizfinance.group.base import Base
-from finvizfinance.util import web_scrap, image_scrap
 from finvizfinance.constants import group_dict, group_order_dict
+from finvizfinance.group.base import Base
+from finvizfinance.util import image_scrap, web_scrap
 
 
 class Spectrum(Base):

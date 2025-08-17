@@ -6,13 +6,15 @@
 """
 
 import os
+
 import pandas as pd
+
 from finvizfinance.screener.financial import Financial
 from finvizfinance.screener.overview import Overview
-from finvizfinance.screener.valuation import Valuation
 from finvizfinance.screener.ownership import Ownership
 from finvizfinance.screener.performance import Performance
 from finvizfinance.screener.technical import Technical
+from finvizfinance.screener.valuation import Valuation
 
 
 class Earnings:

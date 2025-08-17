@@ -1,21 +1,24 @@
+from datetime import datetime
+
 from sqlalchemy import (
-    Column, 
-    DECIMAL, 
-    Integer, 
-    String, 
-    Float, 
-    ForeignKey, 
-    UniqueConstraint, 
-    PrimaryKeyConstraint, 
-    CheckConstraint, 
-    TIMESTAMP, 
+    DECIMAL,
+    TIMESTAMP,
     Boolean,
-    Text
+    CheckConstraint,
+    Column,
+    Float,
+    ForeignKey,
+    Integer,
+    PrimaryKeyConstraint,
+    String,
+    Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
-from datetime import datetime
+
 from app.db.base import Base
 from app.utils.timezones import PAKISTAN_TIMEZONE
+
 
 class UserBalanceModel(Base):
     __tablename__ = "user_balance"
@@ -26,15 +29,20 @@ class UserBalanceModel(Base):
     net_worth = Column(Float, nullable=False)
     user = relationship("UserModel", back_populates="balance")
 
+
 class UserModel(Base):
-    __tablename__ = 'users'
+    __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     u_name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
     u_pass = Column(String, nullable=False)
     balance = relationship("UserBalanceModel", back_populates="user", uselist=False)
-    watchlist = relationship("Watchlist", back_populates="user", cascade="all, delete-orphan")
+    watchlist = relationship(
+        "Watchlist", back_populates="user", cascade="all, delete-orphan"
+    )
+    image_url = Column(String, nullable=True)
+
 
 class Watchlist(Base):
     __tablename__ = "watchlist"
@@ -42,12 +50,17 @@ class Watchlist(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     stock_symbol = Column(String(7), nullable=False)
     user = relationship("UserModel", back_populates="watchlist")
-    __table_args__ = (UniqueConstraint('user_id', 'stock_symbol', name='unique_user_stock'),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "stock_symbol", name="unique_user_stock"),
+    )
+
 
 class Portfolio(Base):
-    __tablename__ = 'portfolio'
+    __tablename__ = "portfolio"
 
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     symbol = Column(String(6), nullable=False)
     quantity = Column(Integer, nullable=False)
     average_price = Column(DECIMAL(10, 2), nullable=False)
@@ -55,13 +68,14 @@ class Portfolio(Base):
     total_invested = Column(DECIMAL(10, 2))
 
     __table_args__ = (
-        PrimaryKeyConstraint('user_id', 'symbol'),
-        CheckConstraint('quantity >= 0'),
-        CheckConstraint('average_price >= 0')
+        PrimaryKeyConstraint("user_id", "symbol"),
+        CheckConstraint("quantity >= 0"),
+        CheckConstraint("average_price >= 0"),
     )
 
+
 class PortfolioHistory(Base):
-    __tablename__ = 'portfolio_history'
+    __tablename__ = "portfolio_history"
 
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     symbol = Column(String(6))
@@ -71,10 +85,12 @@ class PortfolioHistory(Base):
     total_invested = Column(DECIMAL(10, 2))
     snapshot_date = Column(TIMESTAMP, nullable=False)
 
-
     __table_args__ = (
-        PrimaryKeyConstraint('user_id', 'symbol', 'snapshot_date', name='portfolio_history_pkey'),
+        PrimaryKeyConstraint(
+            "user_id", "symbol", "snapshot_date", name="portfolio_history_pkey"
+        ),
     )
+
 
 class Dividend(Base):
     __tablename__ = "dividends"
@@ -85,11 +101,19 @@ class Dividend(Base):
     amount = Column(Float, nullable=False)
     payment_date = Column(String(10), nullable=False)
     ex_dividend_date = Column(String(10), nullable=False)
-    paid_at = Column(String(20), default=lambda: datetime.now(PAKISTAN_TIMEZONE).isoformat())
+    paid_at = Column(
+        String(20), default=lambda: datetime.now(PAKISTAN_TIMEZONE).isoformat()
+    )
 
     __table_args__ = (
-        UniqueConstraint('user_id', 'stock_symbol', 'ex_dividend_date', name='unique_dividend_payment'),
+        UniqueConstraint(
+            "user_id",
+            "stock_symbol",
+            "ex_dividend_date",
+            name="unique_dividend_payment",
+        ),
     )
+
 
 class Transaction(Base):
     __tablename__ = "transactions"
@@ -101,7 +125,9 @@ class Transaction(Base):
     order_type = Column(String(10), nullable=False)
     limit_price = Column(DECIMAL(10, 2))
     transaction_type = Column(String(4), nullable=False)
-    created_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(PAKISTAN_TIMEZONE))    
+    created_at = Column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(PAKISTAN_TIMEZONE)
+    )
     price_per_share = Column(DECIMAL(10, 2), nullable=False)
     total_price = Column(DECIMAL(10, 2), nullable=False)
 
@@ -110,11 +136,12 @@ class Transaction(Base):
         CheckConstraint("transaction_type IN ('buy', 'sell')"),
     )
 
+
 class Order(Base):
-    __tablename__ = 'orders'
+    __tablename__ = "orders"
 
     order_id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('users.id'))
+    user_id = Column(Integer, ForeignKey("users.id"))
     symbol = Column(String(7))
     order_type = Column(String(10))
     price = Column(DECIMAL(10, 2))
@@ -124,10 +151,47 @@ class Order(Base):
     filled_quantity = Column(Integer)
     remaining_quantity = Column(Integer)
 
+
+class StopLossOrder(Base):
+    __tablename__ = "stop_loss_orders"
+
+    order_id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    symbol = Column(String(7))
+    order_type = Column(String(10))
+    stop_price = Column(DECIMAL(10, 2))
+    quantity = Column(Integer)
+    timestamp = Column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(PAKISTAN_TIMEZONE)
+    )
+    order_status = Column(Boolean, default=False)
+    filled_quantity = Column(Integer, default=0)
+    remaining_quantity = Column(Integer)
+
+
+class TakeProfitOrder(Base):
+    __tablename__ = "take_profit_orders"
+
+    order_id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    symbol = Column(String(7))
+    order_type = Column(String(10))
+    take_profit_price = Column(DECIMAL(10, 2))
+    quantity = Column(Integer)
+    timestamp = Column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(PAKISTAN_TIMEZONE)
+    )
+    order_status = Column(Boolean, default=False)
+    filled_quantity = Column(Integer, default=0)
+    remaining_quantity = Column(Integer)
+
+
 class Feedback(Base):
     __tablename__ = "feedback"
 
     feedback_id = Column(Integer, primary_key=True, index=True)
     feedback_message = Column(Text, nullable=False)
-    created_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(PAKISTAN_TIMEZONE))    
+    created_at = Column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(PAKISTAN_TIMEZONE)
+    )
     feedback_status = Column(String(20), default="todo")

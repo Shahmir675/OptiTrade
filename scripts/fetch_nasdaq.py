@@ -1,263 +1,333 @@
+import logging
+import os
+import sys
+import threading
+import time
+import warnings
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import curl_cffi
+import numpy as np
 import pandas as pd
 import requests
 import yfinance as yf
-import logging
-from bs4 import BeautifulSoup
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import warnings
-import curl_cffi
 
-pd.options.mode.chained_assignment = None
+# --- Configuration ---
+MAX_WORKERS = 32  # Increased workers as the task is I/O bound
+ROLLING_WINDOW = 30
+RETRY_LIMIT = 3
+FAILURE_THRESHOLD = 20  # Increased threshold for larger runs
+SAVE_PATH = "../app/static/stocks.json"
 
+# --- Setup Logging and Session ---
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 warnings.simplefilter("ignore", category=UserWarning)
 warnings.simplefilter("ignore", category=RuntimeWarning)
+pd.options.mode.chained_assignment = None
 
-logging.basicConfig(level=logging.INFO)
-
-yf.set_config(proxy={"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"})
+# --- Setup yfinance and Session for Network Requests ---
+# Using a SOCKS5 proxy via Tor, as configured in the original script
+yf.set_config(
+    proxy={"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
+)
 session = curl_cffi.requests.Session(impersonate="chrome")
 
-def fetch_nasdaq_data():
-    """Fetch Nasdaq Tickers Data"""
+# --- Robustness: Script Restart on Consecutive Failures ---
+failure_lock = threading.Lock()
+consecutive_failures = {"count": 0}
+
+
+def restart_script():
+    """Restarts the script if a critical number of failures occur."""
+    logging.critical(
+        f"Restarting script after {FAILURE_THRESHOLD} consecutive failures"
+    )
+    python = sys.executable
+    os.execv(python, [python] + sys.argv)
+
+
+def fetch_nasdaq_list():
+    """Fetches the list of all Nasdaq-listed stocks from the Nasdaq API."""
     url = "https://api.nasdaq.com/api/screener/stocks?tableonly=true&limit=25&offset=0&exchange=nasdaq&download=true"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
     try:
+        logging.info("Fetching list of Nasdaq stocks...")
         response = requests.get(url, headers=headers)
         response.raise_for_status()
+        logging.info("Successfully fetched Nasdaq stock list.")
         return response.json()
     except requests.RequestException as e:
-        logging.error(f"Failed to fetch data from NASDAQ API: {e}")
-        raise Exception(f"Failed to fetch data from NASDAQ API: {e}")
+        logging.error(f"FATAL: Failed to fetch initial data from NASDAQ API: {e}")
+        raise
+
 
 def filter_stocks(df):
-    df = df[df['name'].str.contains('common share|common stock|common|stock|share', case=False, na=False)]
-    df['name'] = df['name'].str.lower()
-    
-    excluded_patterns = ['preferred', 'depositary', 'preference', 'unit ', ' right', 'units ']
-    df = df[~df['name'].str.contains('|'.join(excluded_patterns), case=False, na=False)]
-    
-    df = df[df['country'] == 'United States']
-    
-    filter_words = ['ordinary', 'common']
-    exclude_df = df[~df['name'].str.contains('|'.join(filter_words), case=False, na=False)]
-    
-    merged = df.merge(exclude_df, how='outer', indicator=True)
-    return merged[merged['_merge'] == 'left_only'].drop(columns='_merge')
+    """Applies filters to the DataFrame to select common stocks from the US."""
+    logging.info(f"Filtering stocks. Initial count: {len(df)}")
+    df = df[
+        df["name"].str.contains(
+            "common share|common stock|common|stock|share", case=False, na=False
+        )
+    ]
+    df["name"] = df["name"].str.lower()
 
-def generate_logo_urls(ticker):
-    base_url = "https://companiesmarketcap.com/img/company-logos/"
-    return {
-        'light': f"{base_url}64/{ticker}.png",
-        'dark': f"{base_url}64/{ticker}.D.png",
-        'high_light': f"{base_url}128/{ticker}.png",
-        'high_dark': f"{base_url}128/{ticker}.D.png",
-    }
+    excluded_patterns = [
+        "preferred",
+        "depositary",
+        "preference",
+        "unit ",
+        " right",
+        "units ",
+    ]
+    df = df[~df["name"].str.contains("|".join(excluded_patterns), case=False, na=False)]
 
-def get_clearbit_logo(ticker):
-    try:
-        stock = yf.Ticker(ticker, session=session)
-        website = stock.info.get("website", "")
-        if website:
-            domain = website.replace("http://", "").replace("https://", "").split('/')[0]
-            return f"https://logo.clearbit.com/{domain}"
+    df = df[df["country"] == "United States"]
+
+    filter_words = ["ordinary", "common"]
+    exclude_df = df[
+        ~df["name"].str.contains("|".join(filter_words), case=False, na=False)
+    ]
+
+    merged = df.merge(exclude_df, how="outer", indicator=True)
+    df = merged[merged["_merge"] == "left_only"].drop(columns="_merge")
+    logging.info(f"Finished filtering. Final count: {len(df)}")
+    return df
+
+
+def get_dividend_frequency(dividends):
+    """Estimates dividend frequency based on payment dates."""
+    if dividends.empty or len(dividends) < 2:
         return None
-    except Exception as e:
-        logging.error(f"Error fetching Clearbit logo for {ticker}: {e}")
-        return None
 
-def get_sector_and_industry(ticker):
-    try:
-        stock = yf.Ticker(ticker, session=session)
-        return stock.info.get("sector"), stock.info.get("industry")
-    except Exception as e:
-        logging.error(f"Error fetching sector and industry for {ticker}: {e}")
-        return None, None
+    dividend_dates = dividends.index.to_series().diff().dt.days.dropna()
+    avg_days_between = dividend_dates.mean()
 
-def fetch_ohlcv_data(ticker):
-    url = f'https://eodhd.com/financial-summary/{ticker}.US'
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-        ohlcv = {}
-
-        relevant_props = {
-            'Prev. Close': 'Close',
-            'Open': 'Open',
-            'High': 'High',
-            'Low': 'Low',
-            'Volume': 'Volume',
-        }
-
-        props = soup.find_all('div', class_='ticker__props__item')
-        for prop in props:
-            name = prop.find('span', class_='ticker__props__name').text.strip()
-            value = prop.find('span', class_='ticker__props__value').text.strip()
-
-            if name in relevant_props:
-                value = value.replace(' K', '000').replace(' M', '000000')
-                if name == 'Volume':
-                    ohlcv[relevant_props[name]] = int(value.replace(' ', ''))
-                else:
-                    ohlcv[relevant_props[name]] = float(value)
-
-        if not ohlcv:
-            raise ValueError('No data found on EODHD')
-
-        return ohlcv
-
-    except (requests.HTTPError, ValueError):
-        stock = yf.Ticker(ticker, session=session)
-        hist = stock.history(period="1d")
-        if hist.empty:
-            raise ValueError('No data found on both EODHD and yfinance')
-
-        ohlcv = {
-            'Open': hist['Open'].iloc[0],
-            'High': hist['High'].iloc[0],
-            'Low': hist['Low'].iloc[0],
-            'Close': hist['Close'].iloc[0],
-            'Volume': int(hist['Volume'].iloc[0]),
-        }
-
-        return ohlcv
-    
-def get_dividend_data(ticker):
-    stock = yf.Ticker(ticker, session=session)
-    dividends = stock.dividends
-    last_dividend_date = dividends.index[-1].strftime('%Y-%m-%d') if not dividends.empty else None
-    last_dividend_amount = dividends.iloc[-1] if not dividends.empty else None
-    dividend_yield = stock.info.get('dividendYield', None)
-    
-    if not dividends.empty:
-        dividend_dates = dividends.index.to_series().diff().dt.days.dropna()
-        avg_days_between = dividend_dates.mean()
-        
-        if avg_days_between <= 100:
-            frequency = 'Quarterly'
-        elif avg_days_between <= 200:
-            frequency = 'Semi-Annually'
-        else:
-            frequency = 'Annually'
+    if 80 <= avg_days_between <= 100:
+        return "Quarterly"
+    elif 170 <= avg_days_between <= 200:
+        return "Semi-Annually"
+    elif 350 <= avg_days_between <= 380:
+        return "Annually"
     else:
-        frequency = None
-        
-    return {
-        'last_dividend_date': last_dividend_date,
-        'last_dividend_amount': last_dividend_amount,
-        'dividend_yield': f"{dividend_yield}%" if dividend_yield else None,
-        'payment_frequency': frequency
-    }
+        return "Irregular"
 
-def process_ticker(ticker, volume):
-    """Process a single ticker: Fetch logos, sector/industry, OHLCV data, and stock name."""
+
+def process_ticker_data(ticker, volume_from_api):
+    """
+    Consolidated function to fetch ALL data for a single ticker.
+    This is the core of the optimization, reducing multiple network calls to just a few.
+    """
+    attempt = 0
+    last_error = None
+
+    while attempt < RETRY_LIMIT:
+        try:
+            # 1. Create a single Ticker object
+            stock = yf.Ticker(ticker, session=session)
+
+            # 2. Fetch history and info (two main network calls)
+            hist = stock.history(period="60d", interval="1d")
+            info = stock.info
+
+            # --- Data Validation ---
+            if (
+                hist.empty
+                or "Close" not in hist
+                or hist["Close"].dropna().shape[0] < 40
+            ):
+                raise ValueError(
+                    "Insufficient historical data for volatility calculation."
+                )
+            if not info or info.get("quoteType") != "EQUITY":
+                raise ValueError("Not an equity or no info available.")
+
+            # --- A. Volatility Calculation ---
+            prices = hist["Close"].dropna()
+            log_returns = np.log(prices / prices.shift(1)).dropna()
+            vol_series = log_returns.rolling(window=ROLLING_WINDOW).std().dropna()
+            if vol_series.empty:
+                raise ValueError("Volatility series is empty after calculation.")
+            annualized_vol = vol_series.iloc[-1] * np.sqrt(252)
+
+            # --- B. OHLCV Data ---
+            latest_ohlcv = hist.iloc[-1]
+
+            # --- C. Dividend Data ---
+            dividends = stock.dividends
+            last_dividend_date = (
+                dividends.index[-1].strftime("%Y-%m-%d")
+                if not dividends.empty
+                else None
+            )
+            last_dividend_amount = dividends.iloc[-1] if not dividends.empty else None
+
+            # --- D. Other Information from .info ---
+            website = info.get("website", "")
+            domain = (
+                website.replace("http://", "").replace("https://", "").split("/")[0]
+                if website
+                else None
+            )
+            clearbit_logo_url = (
+                f"https://logo.clearbit.com/{domain}" if domain else None
+            )
+
+            # --- Assemble the complete result dictionary ---
+            result = {
+                "symbol": ticker,
+                "name": info.get("longName", info.get("shortName", ticker)),
+                "open": round(latest_ohlcv["Open"], 2),
+                "high": round(latest_ohlcv["High"], 2),
+                "low": round(latest_ohlcv["Low"], 2),
+                "close": round(latest_ohlcv["Close"], 2),
+                "volume": int(latest_ohlcv["Volume"]),
+                "marketCap": info.get("marketCap"),
+                "30d_realized_volatility_annualized": round(annualized_vol, 6),
+                "last_dividend_date": last_dividend_date,
+                "last_dividend_amount": last_dividend_amount,
+                "dividend_yield": (
+                    f"{info.get('dividendYield', 0) * 100:.2f}%"
+                    if info.get("dividendYield")
+                    else None
+                ),
+                "payment_frequency": get_dividend_frequency(dividends),
+                "industry": info.get("industry"),
+                "sector": info.get("sector"),
+                "logo_light": f"https://companiesmarketcap.com/img/company-logos/64/{ticker}.png",
+                "logo_dark": f"https://companiesmarketcap.com/img/company-logos/64/{ticker}.D.png",
+                "logo_high_light": f"https://companiesmarketcap.com/img/company-logos/128/{ticker}.png",
+                "logo_high_dark": f"https://companiesmarketcap.com/img/company-logos/128/{ticker}.D.png",
+                "clearbit_logo": clearbit_logo_url,
+            }
+
+            logging.info(f"[{ticker}] Successfully processed.")
+            with failure_lock:
+                consecutive_failures["count"] = 0  # Reset on success
+            return result
+
+        except Exception as e:
+            last_error = e
+            attempt += 1
+            logging.warning(f"[{ticker}] Attempt {attempt}/{RETRY_LIMIT} failed: {e}")
+            if attempt < RETRY_LIMIT:
+                time.sleep(0.5)
+
+    logging.error(f"[{ticker}] All {RETRY_LIMIT} attempts failed. Error: {last_error}")
+    with failure_lock:
+        consecutive_failures["count"] += 1
+        if consecutive_failures["count"] >= FAILURE_THRESHOLD:
+            restart_script()
+    return None
+
+
+if __name__ == "__main__":
     try:
-        urls = generate_logo_urls(ticker)
-        
-        sector, industry = get_sector_and_industry(ticker)
-        
-        stock = yf.Ticker(ticker, session=session)
-        stock_name = stock.info.get('longName', stock.info.get('shortName', ticker))
-        
-        ohlcv_data = fetch_ohlcv_data(ticker)
-        if ohlcv_data is None:
-            ohlcv_data = {'Open': None, 'High': None, 'Low': None, 'Close': None, 'Volume': None}
-        
-        dividend_data = get_dividend_data(ticker)
-        
-        logging.info(f"Processed ticker: {ticker}")
-        
-        return {
-            'ticker': ticker,
-            'logo_light': urls['light'],
-            'logo_dark': urls['dark'],
-            'logo_high_light': urls['high_light'],
-            'logo_high_dark': urls['high_dark'],
-            'clearbit_logo': get_clearbit_logo(ticker),
-            'sector': sector,
-            'industry': industry,
-            'name': stock_name,
-            'open': ohlcv_data.get('Open'),
-            'high': ohlcv_data.get('High'),
-            'low': ohlcv_data.get('Low'),
-            'close': ohlcv_data.get('Close'),
-            'volume': volume,
-            'last_dividend_date': dividend_data['last_dividend_date'],
-            'last_dividend_amount': dividend_data['last_dividend_amount'],
-            'dividend_yield': dividend_data['dividend_yield'],
-            'payment_frequency': dividend_data['payment_frequency']
-        }
+        logging.info("--- Script Started ---")
+
+        # 1. Fetch initial list from Nasdaq
+        nasdaq_json = fetch_nasdaq_list()
+        df_initial = pd.DataFrame(nasdaq_json["data"]["rows"])
+        volume_data = {
+            row["symbol"]: row["volume"] for row in nasdaq_json["data"]["rows"]
+        }  # Keep original volume if needed
+
+        # 2. Filter stocks to get the target list
+        df_filtered = filter_stocks(df_initial)
+        tickers_to_process = df_filtered["symbol"].tolist()
+        logging.info(
+            f"Starting to process {len(tickers_to_process)} tickers with {MAX_WORKERS} workers."
+        )
+
+        # 3. Process all tickers in parallel
+        all_results = []
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            # Create a future for each ticker
+            future_to_ticker = {
+                executor.submit(
+                    process_ticker_data, ticker, volume_data.get(ticker)
+                ): ticker
+                for ticker in tickers_to_process
+            }
+
+            # As futures complete, collect results
+            for future in as_completed(future_to_ticker):
+                result = future.result()
+                if result:
+                    all_results.append(result)
+
+        if not all_results:
+            logging.error("No data could be processed. Exiting.")
+            sys.exit(1)
+
+        # 4. Create final DataFrame from results
+        df_final = pd.DataFrame(all_results)
+
+        # Merge with original data to get missing columns like 'lastsale', 'pctchange', etc.
+        df_final = pd.merge(
+            df_final,
+            df_initial[["symbol", "lastsale", "netchange", "pctchange", "url"]],
+            on="symbol",
+            how="left",
+        )
+        df_final["url"] = "https://nasdaq.com" + df_final["url"]
+
+        # 5. Final data cleaning and formatting
+        df_final["lastsale"] = pd.to_numeric(
+            df_final["lastsale"].str.strip().str.replace("$", ""), errors="coerce"
+        ).round(2)
+        df_final["pctchange"] = pd.to_numeric(
+            df_final["pctchange"].str.strip().str.replace("%", ""), errors="coerce"
+        ).round(2)
+        df_final["netchange"] = pd.to_numeric(
+            df_final["netchange"], errors="coerce"
+        ).round(2)
+
+        # 6. Define final column order and save
+        final_columns = [
+            "symbol",
+            "name",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "lastsale",
+            "netchange",
+            "pctchange",
+            "30d_realized_volatility_annualized",
+            "marketCap",
+            "last_dividend_date",
+            "last_dividend_amount",
+            "dividend_yield",
+            "payment_frequency",
+            "industry",
+            "sector",
+            "url",
+            "logo_light",
+            "logo_dark",
+            "logo_high_light",
+            "logo_high_dark",
+            "clearbit_logo",
+        ]
+        # Ensure all columns exist, fill missing with None
+        for col in final_columns:
+            if col not in df_final.columns:
+                df_final[col] = None
+
+        df_final = df_final[final_columns]
+        df_final = df_final.sort_values(by="symbol").reset_index(drop=True)
+
+        os.makedirs(os.path.dirname(SAVE_PATH), exist_ok=True)
+        df_final.to_json(SAVE_PATH, index=False, orient="records", lines=True)
+
+        logging.info(f"--- Script Finished Successfully. Data saved to {SAVE_PATH} ---")
+
     except Exception as e:
-        logging.error(f"Error processing ticker {ticker}: {e}")
-        return None
-
-def add_logos_and_info(df, volume_data):
-    tickers = df['symbol'].tolist()
-    results = []
-
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = {executor.submit(process_ticker, ticker, volume_data.get(ticker, 0)): ticker for ticker in tickers}
-        
-        for future in as_completed(futures):
-            result = future.result()
-            if result:
-                results.append(result)
-
-    processed_df = pd.DataFrame(results)
-    
-    if processed_df.empty:
-        return df
-
-    merged_df = df.merge(
-        processed_df,
-        left_on='symbol',
-        right_on='ticker',
-        how='left',
-        suffixes=('_OLD', '')
-    )
-
-    merged_df = merged_df.drop(columns=['ticker'] + 
-                        [col for col in merged_df.columns if col.endswith('_OLD')],
-                        errors='ignore')
-
-    return merged_df
-
-if __name__ == '__main__':
-    try:
-        logging.info("Script Started")
-        nasdaq_data = fetch_nasdaq_data()
-        df = pd.DataFrame(nasdaq_data['data']['rows'])
-        df['url'] = 'https://nasdaq.com' + df['url']
-        volume_data = {row['symbol']: row['volume'] for row in nasdaq_data['data']['rows']}
-        df = filter_stocks(df)
-        df = df.reset_index(drop=True)
-        print("Done")
-        df_with_logos_and_info = add_logos_and_info(df, volume_data)
-
-        columns_to_int = ['volume', 'marketCap']
-        columns_to_float = ['open', 'high', 'low', 'close', 'lastsale', 'pctchange', 'netchange']
-
-        df_with_logos_and_info['lastsale'] = pd.to_numeric(df_with_logos_and_info['lastsale'].str[1:]).round(2)
-        df_with_logos_and_info['pctchange'] = df_with_logos_and_info['pctchange'].str[:-1].round(2)
-        df_with_logos_and_info[columns_to_int] = df_with_logos_and_info[columns_to_int].apply(pd.to_numeric, errors='coerce', downcast='integer')
-        df_with_logos_and_info[columns_to_float] = df_with_logos_and_info[columns_to_float].apply(pd.to_numeric, errors='coerce').astype(float)
-        df_with_logos_and_info[columns_to_float] = df_with_logos_and_info[columns_to_float].round(2)
-        df_with_logos_and_info
-        df_with_logos_and_info = df_with_logos_and_info.drop(['ipoyear', 'country'], axis=1)
-        df_with_logos_and_info = df_with_logos_and_info[['symbol', 'name', 'open', 'high', 
-                                                            'low', 'close', 'volume', 'lastsale', 
-                                                            'netchange', 'pctchange', 'marketCap', 'last_dividend_date',
-                                                            'last_dividend_amount', 'dividend_yield', 'payment_frequency', 
-                                                            'industry', 'sector', 'url', 'logo_light', 
-                                                            'logo_dark', 'logo_high_light', 'logo_high_dark', 
-                                                            'clearbit_logo']]
-        df_with_logos_and_info = df_with_logos_and_info.sort_values(by='symbol').reset_index(drop=True)
-        path = 'app/static/stocks.json'
-        df_with_logos_and_info.to_json(path, index=False, orient='records', lines=True)
-        
-        logging.info(f"Data saved to {path}")
-    
-    except Exception as e:
-        logging.error(f"An error occurred: {e}")
+        logging.critical(
+            f"A critical error occurred in the main script block: {e}", exc_info=True
+        )
+        sys.exit(1)

@@ -6,13 +6,10 @@
 """
 
 from time import sleep
-from finvizfinance.util import (
-    web_scrap,
-    progress_bar,
-)
-from finvizfinance.constants import order_dict
 
+from finvizfinance.constants import order_dict
 from finvizfinance.screener.base import Base
+from finvizfinance.util import progress_bar, web_scrap
 
 
 class Ticker(Base):

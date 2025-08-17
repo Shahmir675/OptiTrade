@@ -6,6 +6,7 @@
 """
 
 import pandas as pd
+
 from finvizfinance.util import web_scrap
 
 NEWS_URL = "https://finviz.com/news.ashx"

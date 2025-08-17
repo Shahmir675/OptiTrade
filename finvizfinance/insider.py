@@ -6,7 +6,8 @@
 """
 
 import pandas as pd
-from finvizfinance.util import web_scrap, number_covert
+
+from finvizfinance.util import number_covert, web_scrap
 
 INSIDER_URL = "https://finviz.com/insidertrading.ashx"
 

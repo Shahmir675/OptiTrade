@@ -6,8 +6,9 @@
 """
 
 import pandas as pd
-from finvizfinance.util import web_scrap, number_covert
+
 from finvizfinance.constants import group_dict, group_order_dict
+from finvizfinance.util import number_covert, web_scrap
 
 
 class Base:

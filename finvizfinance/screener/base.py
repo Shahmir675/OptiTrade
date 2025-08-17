@@ -7,15 +7,13 @@
 """
 
 import warnings
-import pandas as pd
 from time import sleep
+
+import pandas as pd
+
+from finvizfinance.constants import NUMBER_COL, filter_dict, order_dict, signal_dict
 from finvizfinance.quote import finvizfinance
-from finvizfinance.util import (
-    web_scrap,
-    number_covert,
-    progress_bar,
-)
-from finvizfinance.constants import NUMBER_COL, signal_dict, filter_dict, order_dict
+from finvizfinance.util import number_covert, progress_bar, web_scrap
 
 
 class Base:

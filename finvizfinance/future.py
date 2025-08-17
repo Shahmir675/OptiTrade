@@ -6,7 +6,9 @@
 """
 
 import json
+
 import pandas as pd
+
 from finvizfinance.util import web_scrap
 
 
