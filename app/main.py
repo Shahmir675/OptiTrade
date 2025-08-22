@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from app.db.base import Base
 from app.db.session import engine
 from app.routers import (
+    analytics,
     auth,
     feedback,
     general,
@@ -40,6 +41,7 @@ async def startup_event():
     # asyncio.create_task(start_price_fetching_task())
 
 
+app.include_router(analytics.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(stocks.router)

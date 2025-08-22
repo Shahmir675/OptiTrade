@@ -162,3 +162,121 @@ class FeedbackOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+# Analytics Models
+
+class VaRRequest(BaseModel):
+    user_id: int
+    confidence_level: float = 0.95
+    time_horizon_days: int = 1
+    historical_days: int = 252
+
+
+class VaRResponse(BaseModel):
+    var_percentage: float
+    var_dollar: float
+    confidence_level: float
+    time_horizon_days: int
+    current_portfolio_value: float
+    mean_daily_return: float
+    daily_volatility: float
+    observations_used: int
+
+
+class MaxDrawdownRequest(BaseModel):
+    user_id: int
+    historical_days: int = 252
+
+
+class MaxDrawdownResponse(BaseModel):
+    max_drawdown_percentage: float
+    peak_date: str
+    trough_date: str
+    recovery_date: Optional[str]
+    peak_value: float
+    trough_value: float
+    current_value: float
+    drawdown_duration_days: int
+    observations_used: int
+
+
+class SharpeRatioRequest(BaseModel):
+    user_id: int
+    risk_free_rate: float = 0.02
+    historical_days: int = 252
+
+
+class SharpeRatioResponse(BaseModel):
+    sharpe_ratio: float
+    annualized_return: float
+    annualized_volatility: float
+    risk_free_rate: float
+    excess_return: float
+    observations_used: int
+
+
+class BetaRequest(BaseModel):
+    user_id: int
+    market_symbol: str = "SPY"
+    historical_days: int = 252
+
+
+class BetaResponse(BaseModel):
+    beta: float
+    alpha_annualized: float
+    r_squared: float
+    correlation: float
+    portfolio_volatility: float
+    market_volatility: float
+    market_symbol: str
+    p_value: float
+    observations_used: int
+
+
+class ConcentrationRequest(BaseModel):
+    user_id: int
+
+
+class HoldingInfo(BaseModel):
+    symbol: str
+    value: float
+    weight: float
+    quantity: int
+
+
+class ConcentrationResponse(BaseModel):
+    herfindahl_hirschman_index: float
+    effective_number_of_holdings: float
+    actual_number_of_holdings: int
+    concentration_level: str
+    total_portfolio_value: float
+    top_5_holdings_weight: float
+    top_holdings: List[HoldingInfo]
+    all_holdings: List[HoldingInfo]
+
+
+class ComprehensiveAnalyticsRequest(BaseModel):
+    user_id: int
+    confidence_level: float = 0.95
+    risk_free_rate: float = 0.02
+    market_symbol: str = "SPY"
+    historical_days: int = 252
+
+
+class AnalyticsParameters(BaseModel):
+    confidence_level: float
+    risk_free_rate: float
+    market_symbol: str
+    historical_days: int
+
+
+class ComprehensiveAnalyticsResponse(BaseModel):
+    user_id: int
+    calculation_date: str
+    parameters: AnalyticsParameters
+    var: Optional[VaRResponse]
+    maximum_drawdown: Optional[MaxDrawdownResponse]
+    sharpe_ratio: Optional[SharpeRatioResponse]
+    beta: Optional[BetaResponse]
+    concentration: Optional[ConcentrationResponse]
