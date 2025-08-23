@@ -166,7 +166,6 @@ async def store_stop_loss_order(
         current_price = await _get_current_price(symbol)
         stop_price = Decimal(stop_price)
 
-        # Sanity checks: prevent instantly-triggered nonsense
         if order_type == "sell" and stop_price >= current_price:
             raise ValueError("Stop-loss sell price must be BELOW current market price.")
         if order_type == "buy" and stop_price <= current_price:
@@ -230,6 +229,32 @@ async def process_stop_loss_orders(db: AsyncSession):
         except Exception as e:
             await db.rollback()
             print(f"Failed to process stop loss order {order.order_id}: {str(e)}")
+            continue
+
+async def process_limit_orders(db: AsyncSession):
+    pending_orders_result = await db.execute(
+        select(Order).where(Order.order_status == False)
+    )
+    pending_orders = pending_orders_result.scalars().all()
+    
+    for order in pending_orders:
+        try:
+            current_price = await _get_current_price(order.symbol)
+            triggered = False
+            
+            if order.order_type == "buy" and current_price <= order.price:
+                await buy_stock(order.user_id, order.symbol, order.remaining_quantity, db, order_type="market")
+                triggered = True
+            elif order.order_type == "sell" and current_price >= order.price:
+                await sell_stock(order.user_id, order.symbol, order.remaining_quantity, db, order_type="market")
+                triggered = True
+
+            if triggered:
+                order.order_status = True
+                order.filled_quantity = order.quantity
+                await db.commit()
+        except Exception:
+            await db.rollback()
             continue
 
 async def buy_stock(
