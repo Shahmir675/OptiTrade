@@ -365,3 +365,45 @@ class ValidationErrorResponse(BaseModel):
     validation_timestamp: str
     error: str
     status: str
+
+class StopLossOrderRequest(BaseModel):
+    user_id: int
+    symbol: str
+    quantity: int
+    stop_price: Decimal
+    order_type: str
+
+class TakeProfitOrderRequest(BaseModel):
+    user_id: int
+    symbol: str
+    quantity: int
+    take_profit_price: Decimal
+    order_type: str
+
+class StopLossOrderResponse(BaseModel):
+    order_id: int
+    user_id: int
+    symbol: str
+    order_type: str
+    stop_price: Decimal
+    quantity: int
+    timestamp: datetime
+    order_status: bool
+    filled_quantity: int
+    remaining_quantity: int
+
+class LimitOrderResponse(BaseModel):
+    order_id: int
+    user_id: int
+    symbol: str
+    order_type: str
+    price: Decimal
+    quantity: int
+    timestamp: datetime
+    order_status: bool
+    filled_quantity: int
+    remaining_quantity: int
+
+class AllOrdersResponse(BaseModel):
+    limit_orders: List[LimitOrderResponse]
+    stop_loss_orders: List[StopLossOrderResponse] 
