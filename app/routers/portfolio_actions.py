@@ -13,7 +13,7 @@ from app.models import sqlalchemy_models as sql_models
 script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../scripts"))
 sys.path.insert(0, script_path)
 
-from portfolio_management import buy_stock, sell_stock
+from portfolio_management import buy_stock, sell_stock, store_stop_loss_order
 
 router = APIRouter(prefix="/portfolio", tags=["Portfolio Actions"])
 
@@ -31,7 +31,11 @@ async def buy_stock_endpoint(
             order_type=request.order_type,
             limit_price=request.limit_price,
         )
+        if "Error" in result:
+            raise HTTPException(status_code=400, detail=result)
         return {"message": "Stock purchase processed.", "details": result}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -49,7 +53,195 @@ async def sell_stock_endpoint(
             order_type=request.order_type,
             limit_price=request.limit_price,
         )
-        return {"message": "Stock purchase processed.", "details": result}
+        if "Error" in result:
+            raise HTTPException(status_code=400, detail=result)
+        return {"message": "Stock sale processed.", "details": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/stop-loss")
+async def create_stop_loss_order(
+    request: pyd_models.StopLossOrderRequest, db: AsyncSession = Depends(get_db)
+):
+    try:
+        result = await store_stop_loss_order(
+            user_id=request.user_id,
+            symbol=request.symbol,
+            quantity=request.quantity,
+            stop_price=request.stop_price,
+            order_type=request.order_type,
+            db=db,
+        )
+        if "Error" in result:
+            raise HTTPException(status_code=400, detail=result)
+        return {"message": "Stop loss order created successfully.", "details": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/stop-loss/{user_id}", response_model=List[pyd_models.StopLossOrderResponse])
+async def get_stop_loss_orders(
+    user_id: int,
+    symbol: Optional[str] = None,
+    status: Optional[bool] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        query = select(sql_models.StopLossOrder).where(
+            sql_models.StopLossOrder.user_id == user_id
+        )
+        
+        if symbol:
+            query = query.where(sql_models.StopLossOrder.symbol == symbol.upper())
+        
+        if status is not None:
+            query = query.where(sql_models.StopLossOrder.order_status == status)
+        
+        query = query.order_by(sql_models.StopLossOrder.timestamp.desc())
+        
+        result = await db.execute(query)
+        stop_loss_orders = result.scalars().all()
+        
+        return stop_loss_orders
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.delete("/stop-loss/{order_id}")
+async def cancel_stop_loss_order(
+    order_id: int, db: AsyncSession = Depends(get_db)
+):
+    try:
+        query = select(sql_models.StopLossOrder).where(
+            sql_models.StopLossOrder.order_id == order_id
+        )
+        result = await db.execute(query)
+        stop_loss_order = result.scalar_one_or_none()
+        
+        if not stop_loss_order:
+            raise HTTPException(status_code=404, detail="Stop loss order not found")
+        
+        if stop_loss_order.order_status:
+            raise HTTPException(
+                status_code=400, 
+                detail="Cannot cancel already executed stop loss order"
+            )
+        
+        await db.delete(stop_loss_order)
+        await db.commit()
+        
+        return {
+            "message": "Stop loss order cancelled successfully",
+            "order_id": order_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+@router.get("/limit-orders/{user_id}", response_model=List[pyd_models.LimitOrderResponse])
+async def get_limit_orders(
+    user_id: int,
+    symbol: Optional[str] = None,
+    status: Optional[bool] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        query = select(sql_models.Order).where(
+            sql_models.Order.user_id == user_id
+        )
+        
+        if symbol:
+            query = query.where(sql_models.Order.symbol == symbol.upper())
+        
+        if status is not None:
+            query = query.where(sql_models.Order.order_status == status)
+        
+        query = query.order_by(sql_models.Order.timestamp.desc())
+        
+        result = await db.execute(query)
+        limit_orders = result.scalars().all()
+        
+        return limit_orders
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.delete("/limit-orders/{order_id}")
+async def cancel_limit_order(
+    order_id: int, db: AsyncSession = Depends(get_db)
+):
+    try:
+        query = select(sql_models.Order).where(
+            sql_models.Order.order_id == order_id
+        )
+        result = await db.execute(query)
+        limit_order = result.scalar_one_or_none()
+        
+        if not limit_order:
+            raise HTTPException(status_code=404, detail="Limit order not found")
+        
+        if limit_order.order_status:
+            raise HTTPException(
+                status_code=400, 
+                detail="Cannot cancel already executed limit order"
+            )
+        
+        await db.delete(limit_order)
+        await db.commit()
+        
+        return {
+            "message": "Limit order cancelled successfully",
+            "order_id": order_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/orders/{user_id}", response_model=pyd_models.AllOrdersResponse)
+async def get_all_orders(
+    user_id: int,
+    symbol: Optional[str] = None,
+    status: Optional[bool] = None,
+    page: int = 1,
+    page_size: int = 20,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        offset = (page - 1) * page_size
+        
+        limit_query = select(sql_models.Order).where(sql_models.Order.user_id == user_id)
+        if symbol:
+            limit_query = limit_query.where(sql_models.Order.symbol == symbol.upper())
+        if status is not None:
+            limit_query = limit_query.where(sql_models.Order.order_status == status)
+        
+        stop_loss_query = select(sql_models.StopLossOrder).where(sql_models.StopLossOrder.user_id == user_id)
+        if symbol:
+            stop_loss_query = stop_loss_query.where(sql_models.StopLossOrder.symbol == symbol.upper())
+        if status is not None:
+            stop_loss_query = stop_loss_query.where(sql_models.StopLossOrder.order_status == status)
+        
+        limit_result = await db.execute(limit_query)
+        stop_loss_result = await db.execute(stop_loss_query)
+        
+        limit_orders = limit_result.scalars().all()
+        stop_loss_orders = stop_loss_result.scalars().all()
+        
+        return pyd_models.AllOrdersResponse(
+            limit_orders=limit_orders,
+            stop_loss_orders=stop_loss_orders,
+        )
+        
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -61,29 +253,32 @@ async def get_portfolio(
     page_size: int = 10,
     db: AsyncSession = Depends(get_db),
 ):
-    offset = (page - 1) * page_size
-    query = (
-        select(sql_models.Portfolio)
-        .where(sql_models.Portfolio.user_id == user_id)
-        .offset(offset)
-        .limit(page_size)
-    )
-    result = await db.execute(query)
-    portfolios_db = result.scalars().all()
-
-    portfolio_items = []
-    for p in portfolios_db:
-        portfolio_items.append(
-            pyd_models.PortfolioResponseItem(
-                user_id=p.user_id,
-                symbol=p.symbol,
-                quantity=p.quantity,
-                average_price=p.average_price,
-                current_value=p.current_value,
-                total_invested=p.total_invested,
-            )
+    try:
+        offset = (page - 1) * page_size
+        query = (
+            select(sql_models.Portfolio)
+            .where(sql_models.Portfolio.user_id == user_id)
+            .offset(offset)
+            .limit(page_size)
         )
-    return pyd_models.PortfolioResponse(portfolio=portfolio_items)
+        result = await db.execute(query)
+        portfolios_db = result.scalars().all()
+
+        portfolio_items = []
+        for p in portfolios_db:
+            portfolio_items.append(
+                pyd_models.PortfolioResponseItem(
+                    user_id=p.user_id,
+                    symbol=p.symbol,
+                    quantity=p.quantity,
+                    average_price=p.average_price,
+                    current_value=p.current_value,
+                    total_invested=p.total_invested,
+                )
+            )
+        return pyd_models.PortfolioResponse(portfolio=portfolio_items)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get(
@@ -94,18 +289,21 @@ async def get_portfolio(
 async def get_portfolio_history(
     user_id: int, symbol: Optional[str] = None, session: AsyncSession = Depends(get_db)
 ):
-    query = select(sql_models.PortfolioHistory).where(
-        sql_models.PortfolioHistory.user_id == user_id
-    )
-    if symbol:
-        query = query.where(sql_models.PortfolioHistory.symbol == symbol.upper())
+    try:
+        query = select(sql_models.PortfolioHistory).where(
+            sql_models.PortfolioHistory.user_id == user_id
+        )
+        if symbol:
+            query = query.where(sql_models.PortfolioHistory.symbol == symbol.upper())
 
-    query = query.order_by(sql_models.PortfolioHistory.snapshot_date.desc())
+        query = query.order_by(sql_models.PortfolioHistory.snapshot_date.desc())
 
-    result = await session.execute(query)
-    history_items = result.scalars().all()
+        result = await session.execute(query)
+        history_items = result.scalars().all()
 
-    if not history_items:
-        return []
+        if not history_items:
+            return []
 
-    return history_items
+        return history_items
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e

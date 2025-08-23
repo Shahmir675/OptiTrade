@@ -31,6 +31,51 @@ class SellStockRequest(BaseModel):
     limit_price: Optional[Decimal] = None
 
 
+class StopLossOrderRequest(BaseModel):
+    user_id: int
+    symbol: str
+    quantity: int
+    stop_price: Decimal
+    order_type: str
+
+
+class StopLossOrderResponse(BaseModel):
+    order_id: int
+    user_id: int
+    symbol: str
+    order_type: str
+    stop_price: float
+    quantity: int
+    timestamp: datetime
+    order_status: bool
+    filled_quantity: int
+    remaining_quantity: int
+
+    class Config:
+        orm_mode = True
+        json_encoders = {Decimal: lambda v: float(v)}
+
+class LimitOrderResponse(BaseModel):
+    order_id: int
+    user_id: int
+    symbol: str
+    order_type: str
+    price: float
+    quantity: int
+    timestamp: datetime
+    order_status: bool
+    filled_quantity: int
+    remaining_quantity: int
+
+    class Config:
+        orm_mode = True
+        json_encoders = {Decimal: lambda v: float(v)}
+
+
+class AllOrdersResponse(BaseModel):
+    limit_orders: List[LimitOrderResponse]
+    stop_loss_orders: List[StopLossOrderResponse]
+
 class OrderResponse(BaseModel):
     order_id: int
     user_id: int

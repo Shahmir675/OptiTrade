@@ -14,7 +14,6 @@ from app.models.sqlalchemy_models import (
     Order,
     Portfolio,
     StopLossOrder,
-    TakeProfitOrder,
     Transaction,
     UserModel,
 )
@@ -163,48 +162,34 @@ async def store_stop_loss_order(
     order_type: str,
     db: AsyncSession,
 ):
-    current_price = await _get_current_price(symbol)
-    stop_price = Decimal(stop_price)
-    triggered = False
-    message = ""
-
     try:
-        if order_type == "sell":
-            if current_price <= stop_price:
-                message = await sell_stock(
-                    user_id, symbol, quantity, db, order_type="market"
-                )
-                triggered = True
-        elif order_type == "buy":
-            if current_price >= stop_price:
-                message = await buy_stock(
-                    user_id, symbol, quantity, db, order_type="market"
-                )
-                triggered = True
-        else:
-            raise ValueError("Invalid order_type. Must be 'buy' or 'sell'.")
+        current_price = await _get_current_price(symbol)
+        stop_price = Decimal(stop_price)
+
+        # Sanity checks: prevent instantly-triggered nonsense
+        if order_type == "sell" and stop_price >= current_price:
+            raise ValueError("Stop-loss sell price must be BELOW current market price.")
+        if order_type == "buy" and stop_price <= current_price:
+            raise ValueError("Stop-loss buy price must be ABOVE current market price.")
+
+        new_order = StopLossOrder(
+            user_id=user_id,
+            symbol=symbol,
+            order_type=order_type,
+            stop_price=stop_price,
+            quantity=quantity,
+            timestamp=datetime.now(),
+            order_status=False,
+            filled_quantity=0,
+        )
+        db.add(new_order)
+        await db.commit()
+
+        return f"Stop-loss order created: {order_type} {quantity} {symbol} @ {stop_price}"
+
     except Exception as e:
-        return f"Error processing stop loss order: {str(e)}"
-
-    if not triggered:
-        try:
-            new_order = StopLossOrder(
-                user_id=user_id,
-                symbol=symbol,
-                order_type=order_type,
-                stop_price=stop_price,
-                quantity=quantity,
-                timestamp=datetime.now(),
-                remaining_quantity=quantity,
-            )
-            db.add(new_order)
-            await db.commit()
-            message = f"Stop loss order placed: {order_type} {quantity} shares of {symbol} when price reaches {stop_price}."
-        except Exception as e:
-            await db.rollback()
-            message = f"Error storing stop loss order: {str(e)}"
-
-    return message
+        await db.rollback()
+        raise Exception(f"Error storing stop-loss order: {str(e)}")
 
 
 async def process_stop_loss_orders(db: AsyncSession):
@@ -246,100 +231,6 @@ async def process_stop_loss_orders(db: AsyncSession):
             await db.rollback()
             print(f"Failed to process stop loss order {order.order_id}: {str(e)}")
             continue
-
-
-async def store_take_profit_order(
-    user_id: int,
-    symbol: str,
-    quantity: int,
-    take_profit_price: Decimal,
-    order_type: str,
-    db: AsyncSession,
-):
-    current_price = await _get_current_price(symbol)
-    take_profit_price = Decimal(take_profit_price)
-    triggered = False
-    message = ""
-
-    try:
-        if order_type == "sell":
-            if current_price >= take_profit_price:
-                message = await sell_stock(
-                    user_id, symbol, quantity, db, order_type="market"
-                )
-                triggered = True
-        elif order_type == "buy":
-            if current_price <= take_profit_price:
-                message = await buy_stock(
-                    user_id, symbol, quantity, db, order_type="market"
-                )
-                triggered = True
-        else:
-            raise ValueError("Invalid order_type. Must be 'buy' or 'sell'.")
-    except Exception as e:
-        return f"Error processing take profit order: {str(e)}"
-
-    if not triggered:
-        try:
-            new_order = TakeProfitOrder(
-                user_id=user_id,
-                symbol=symbol,
-                order_type=order_type,
-                take_profit_price=take_profit_price,
-                quantity=quantity,
-                timestamp=datetime.now(),
-                remaining_quantity=quantity,
-            )
-            db.add(new_order)
-            await db.commit()
-            message = f"Take profit order placed: {order_type} {quantity} shares of {symbol} when price reaches {take_profit_price}."
-        except Exception as e:
-            await db.rollback()
-            message = f"Error storing take profit order: {str(e)}"
-
-    return message
-
-
-async def process_take_profit_orders(db: AsyncSession):
-    pending_orders_result = await db.execute(
-        select(TakeProfitOrder).where(TakeProfitOrder.order_status == False)
-    )
-    pending_orders = pending_orders_result.scalars().all()
-
-    for order in pending_orders:
-        try:
-            current_price = await _get_current_price(order.symbol)
-            triggered = False
-
-            if order.order_type == "sell" and current_price >= order.take_profit_price:
-                await sell_stock(
-                    order.user_id,
-                    order.symbol,
-                    order.remaining_quantity,
-                    db,
-                    order_type="market",
-                )
-                triggered = True
-            elif order.order_type == "buy" and current_price <= order.take_profit_price:
-                await buy_stock(
-                    order.user_id,
-                    order.symbol,
-                    order.remaining_quantity,
-                    db,
-                    order_type="market",
-                )
-                triggered = True
-
-            if triggered:
-                order.order_status = True
-                order.filled_quantity = order.remaining_quantity
-                order.remaining_quantity = 0
-                await db.commit()
-        except Exception as e:
-            await db.rollback()
-            print(f"Failed to process take profit order {order.order_id}: {str(e)}")
-            continue
-
 
 async def buy_stock(
     user_id: int,

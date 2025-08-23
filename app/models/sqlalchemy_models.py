@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Computed
 )
 from sqlalchemy.orm import relationship
 
@@ -166,25 +167,7 @@ class StopLossOrder(Base):
     )
     order_status = Column(Boolean, default=False)
     filled_quantity = Column(Integer, default=0)
-    remaining_quantity = Column(Integer)
-
-
-class TakeProfitOrder(Base):
-    __tablename__ = "take_profit_orders"
-
-    order_id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    symbol = Column(String(7))
-    order_type = Column(String(10))
-    take_profit_price = Column(DECIMAL(10, 2))
-    quantity = Column(Integer)
-    timestamp = Column(
-        TIMESTAMP(timezone=True), default=lambda: datetime.now(PAKISTAN_TIMEZONE)
-    )
-    order_status = Column(Boolean, default=False)
-    filled_quantity = Column(Integer, default=0)
-    remaining_quantity = Column(Integer)
-
+    remaining_quantity = Column(Integer, Computed("quantity - filled_quantity"), nullable=False)
 
 class Feedback(Base):
     __tablename__ = "feedback"
