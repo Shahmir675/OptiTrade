@@ -8,18 +8,21 @@ This module provides API endpoints for portfolio analytics calculations includin
 - Beta
 - Portfolio Concentration
 - Comprehensive Analytics Summary
+
+Updated with professional error handling using Union types for success/error states.
 """
 
 import logging
 from typing import Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db
 from app.models import pydantic_models as pyd_models
 from app.services.analytics_service import AnalyticsService
+
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -41,27 +44,17 @@ async def calculate_var_endpoint(
     - **confidence_level**: Confidence level (0.95 = 95%, 0.99 = 99%)
     - **time_horizon_days**: Time horizon in days (typically 1 day)
     - **historical_days**: Number of historical days to use for calculation
+
+    Returns either successful VaR calculation or detailed error information.
     """
-    try:
-        result = await AnalyticsService.calculate_var(
-            user_id=request.user_id,
-            db=db,
-            confidence_level=request.confidence_level,
-            time_horizon=request.time_horizon_days,
-            days=request.historical_days
-        )
-        return pyd_models.VaRResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating VaR: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating VaR"
-        )
+    result = await AnalyticsService.calculate_var(
+        user_id=request.user_id,
+        db=db,
+        confidence_level=request.confidence_level,
+        time_horizon=request.time_horizon_days,
+        days=request.historical_days
+    )
+    return result
 
 
 @router.get("/var/{user_id}", response_model=pyd_models.VaRResponse)
@@ -82,27 +75,17 @@ async def calculate_var_get_endpoint(
     - **confidence_level**: Confidence level (0.95 = 95%, 0.99 = 99%)
     - **time_horizon_days**: Time horizon in days (typically 1 day)
     - **historical_days**: Number of historical days to use for calculation
+
+    Returns either successful VaR calculation or detailed error information.
     """
-    try:
-        result = await AnalyticsService.calculate_var(
-            user_id=user_id,
-            db=db,
-            confidence_level=confidence_level,
-            time_horizon=time_horizon_days,
-            days=historical_days
-        )
-        return pyd_models.VaRResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating VaR: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating VaR"
-        )
+    result = await AnalyticsService.calculate_var(
+        user_id=user_id,
+        db=db,
+        confidence_level=confidence_level,
+        time_horizon=time_horizon_days,
+        days=historical_days
+    )
+    return result
 
 
 @router.post("/max-drawdown", response_model=pyd_models.MaxDrawdownResponse)
@@ -118,25 +101,15 @@ async def calculate_max_drawdown_endpoint(
 
     - **user_id**: User ID for portfolio analysis
     - **historical_days**: Number of historical days to use for calculation
+
+    Returns either successful MDD calculation or detailed error information.
     """
-    try:
-        result = await AnalyticsService.calculate_maximum_drawdown(
-            user_id=request.user_id,
-            db=db,
-            days=request.historical_days
-        )
-        return pyd_models.MaxDrawdownResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating Maximum Drawdown: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating Maximum Drawdown"
-        )
+    result = await AnalyticsService.calculate_maximum_drawdown(
+        user_id=request.user_id,
+        db=db,
+        days=request.historical_days
+    )
+    return result
 
 
 @router.get("/max-drawdown/{user_id}", response_model=pyd_models.MaxDrawdownResponse)
@@ -153,25 +126,15 @@ async def calculate_max_drawdown_get_endpoint(
 
     - **user_id**: User ID for portfolio analysis
     - **historical_days**: Number of historical days to use for calculation
+
+    Returns either successful MDD calculation or detailed error information.
     """
-    try:
-        result = await AnalyticsService.calculate_maximum_drawdown(
-            user_id=user_id,
-            db=db,
-            days=historical_days
-        )
-        return pyd_models.MaxDrawdownResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating Maximum Drawdown: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating Maximum Drawdown"
-        )
+    result = await AnalyticsService.calculate_maximum_drawdown(
+        user_id=user_id,
+        db=db,
+        days=historical_days
+    )
+    return result
 
 
 @router.post("/sharpe-ratio", response_model=pyd_models.SharpeRatioResponse)
@@ -188,26 +151,16 @@ async def calculate_sharpe_ratio_endpoint(
     - **user_id**: User ID for portfolio analysis
     - **risk_free_rate**: Annual risk-free rate (default 2%)
     - **historical_days**: Number of historical days to use for calculation
+
+    Returns either successful Sharpe ratio calculation or detailed error information.
     """
-    try:
-        result = await AnalyticsService.calculate_sharpe_ratio(
-            user_id=request.user_id,
-            db=db,
-            risk_free_rate=request.risk_free_rate,
-            days=request.historical_days
-        )
-        return pyd_models.SharpeRatioResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating Sharpe Ratio: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating Sharpe Ratio"
-        )
+    result = await AnalyticsService.calculate_sharpe_ratio(
+        user_id=request.user_id,
+        db=db,
+        risk_free_rate=request.risk_free_rate,
+        days=request.historical_days
+    )
+    return result
 
 
 @router.get("/sharpe-ratio/{user_id}", response_model=pyd_models.SharpeRatioResponse)
@@ -226,26 +179,16 @@ async def calculate_sharpe_ratio_get_endpoint(
     - **user_id**: User ID for portfolio analysis
     - **risk_free_rate**: Annual risk-free rate (default 2%)
     - **historical_days**: Number of historical days to use for calculation
+
+    Returns either successful Sharpe ratio calculation or detailed error information.
     """
-    try:
-        result = await AnalyticsService.calculate_sharpe_ratio(
-            user_id=user_id,
-            db=db,
-            risk_free_rate=risk_free_rate,
-            days=historical_days
-        )
-        return pyd_models.SharpeRatioResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating Sharpe Ratio: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating Sharpe Ratio"
-        )
+    result = await AnalyticsService.calculate_sharpe_ratio(
+        user_id=user_id,
+        db=db,
+        risk_free_rate=risk_free_rate,
+        days=historical_days
+    )
+    return result
 
 
 @router.post("/beta", response_model=pyd_models.BetaResponse)
@@ -263,26 +206,16 @@ async def calculate_beta_endpoint(
     - **user_id**: User ID for portfolio analysis
     - **market_symbol**: Market index symbol (default SPY)
     - **historical_days**: Number of historical days to use for calculation
+
+    Returns either successful beta calculation or detailed error information.
     """
-    try:
-        result = await AnalyticsService.calculate_beta(
-            user_id=request.user_id,
-            db=db,
-            market_symbol=request.market_symbol,
-            days=request.historical_days
-        )
-        return pyd_models.BetaResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating Beta: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating Beta"
-        )
+    result = await AnalyticsService.calculate_beta(
+        user_id=request.user_id,
+        db=db,
+        market_symbol=request.market_symbol,
+        days=request.historical_days
+    )
+    return result
 
 
 @router.get("/beta/{user_id}", response_model=pyd_models.BetaResponse)
@@ -302,26 +235,16 @@ async def calculate_beta_get_endpoint(
     - **user_id**: User ID for portfolio analysis
     - **market_symbol**: Market index symbol (default SPY)
     - **historical_days**: Number of historical days to use for calculation
+
+    Returns either successful beta calculation or detailed error information.
     """
-    try:
-        result = await AnalyticsService.calculate_beta(
-            user_id=user_id,
-            db=db,
-            market_symbol=market_symbol,
-            days=historical_days
-        )
-        return pyd_models.BetaResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating Beta: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating Beta"
-        )
+    result = await AnalyticsService.calculate_beta(
+        user_id=user_id,
+        db=db,
+        market_symbol=market_symbol,
+        days=historical_days
+    )
+    return result
 
 
 @router.post("/concentration", response_model=pyd_models.ConcentrationResponse)
@@ -341,24 +264,14 @@ async def calculate_concentration_endpoint(
     - < 0.15: Low concentration (well diversified)
     - 0.15-0.25: Moderate concentration
     - > 0.25: High concentration (concentrated portfolio)
+
+    Returns either successful concentration calculation or detailed error information.
     """
-    try:
-        result = await AnalyticsService.calculate_portfolio_concentration(
-            user_id=request.user_id,
-            db=db
-        )
-        return pyd_models.ConcentrationResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating Portfolio Concentration: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating Portfolio Concentration"
-        )
+    result = await AnalyticsService.calculate_portfolio_concentration(
+        user_id=request.user_id,
+        db=db
+    )
+    return result
 
 
 @router.get("/concentration/{user_id}", response_model=pyd_models.ConcentrationResponse)
@@ -378,24 +291,14 @@ async def calculate_concentration_get_endpoint(
     - < 0.15: Low concentration (well diversified)
     - 0.15-0.25: Moderate concentration
     - > 0.25: High concentration (concentrated portfolio)
+
+    Returns either successful concentration calculation or detailed error information.
     """
-    try:
-        result = await AnalyticsService.calculate_portfolio_concentration(
-            user_id=user_id,
-            db=db
-        )
-        return pyd_models.ConcentrationResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating Portfolio Concentration: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating Portfolio Concentration"
-        )
+    result = await AnalyticsService.calculate_portfolio_concentration(
+        user_id=user_id,
+        db=db
+    )
+    return result
 
 
 @router.post("/comprehensive", response_model=pyd_models.ComprehensiveAnalyticsResponse)
@@ -413,33 +316,26 @@ async def get_comprehensive_analytics_endpoint(
     - Beta
     - Portfolio Concentration
 
+    Each metric can succeed or fail independently, providing detailed error
+    information for failed calculations while still returning successful ones.
+
     - **user_id**: User ID for portfolio analysis
     - **confidence_level**: VaR confidence level (default 95%)
     - **risk_free_rate**: Annual risk-free rate (default 2%)
     - **market_symbol**: Market index for beta calculation (default SPY)
     - **historical_days**: Number of historical days to use
+
+    Returns comprehensive analytics with success/error state for each metric.
     """
-    try:
-        result = await AnalyticsService.get_comprehensive_analytics(
-            user_id=request.user_id,
-            db=db,
-            confidence_level=request.confidence_level,
-            risk_free_rate=request.risk_free_rate,
-            market_symbol=request.market_symbol,
-            days=request.historical_days
-        )
-        return pyd_models.ComprehensiveAnalyticsResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating comprehensive analytics: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating comprehensive analytics"
-        )
+    result = await AnalyticsService.get_comprehensive_analytics(
+        user_id=request.user_id,
+        db=db,
+        confidence_level=request.confidence_level,
+        risk_free_rate=request.risk_free_rate,
+        market_symbol=request.market_symbol,
+        days=request.historical_days
+    )
+    return result
 
 
 @router.get("/comprehensive/{user_id}", response_model=pyd_models.ComprehensiveAnalyticsResponse)
@@ -461,33 +357,26 @@ async def get_comprehensive_analytics_get_endpoint(
     - Beta
     - Portfolio Concentration
 
+    Each metric can succeed or fail independently, providing detailed error
+    information for failed calculations while still returning successful ones.
+
     - **user_id**: User ID for portfolio analysis
     - **confidence_level**: VaR confidence level (default 95%)
     - **risk_free_rate**: Annual risk-free rate (default 2%)
     - **market_symbol**: Market index for beta calculation (default SPY)
     - **historical_days**: Number of historical days to use
+
+    Returns comprehensive analytics with success/error state for each metric.
     """
-    try:
-        result = await AnalyticsService.get_comprehensive_analytics(
-            user_id=user_id,
-            db=db,
-            confidence_level=confidence_level,
-            risk_free_rate=risk_free_rate,
-            market_symbol=market_symbol,
-            days=historical_days
-        )
-        return pyd_models.ComprehensiveAnalyticsResponse(**result)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error calculating comprehensive analytics: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error calculating comprehensive analytics"
-        )
+    result = await AnalyticsService.get_comprehensive_analytics(
+        user_id=user_id,
+        db=db,
+        confidence_level=confidence_level,
+        risk_free_rate=risk_free_rate,
+        market_symbol=market_symbol,
+        days=historical_days
+    )
+    return result
 
 
 @router.get("/health")
@@ -498,5 +387,125 @@ async def analytics_health_check() -> Dict[str, str]:
     return {
         "status": "healthy",
         "service": "portfolio_analytics",
-        "version": "1.0.0"
+        "version": "2.0.0",  # Updated version to reflect professional error handling
+        "features": [
+            "professional_error_handling",
+            "union_response_types",
+            "detailed_error_messages",
+            "graceful_failure_handling"
+        ]
     }
+
+
+# New endpoint for error validation and debugging
+# Replace the validation endpoint in your analytics router with this fixed version:
+
+from datetime import datetime
+from typing import List, Dict, Any, Union
+
+# Add these new imports to your router
+from app.models.pydantic_models import (
+    ValidationResponse, 
+    ValidationErrorResponse,
+    PortfolioSummary,
+    HistoricalDataInfo, 
+    ReturnsDataInfo,
+    AnalyticsReadiness
+)
+
+# Fixed validation endpoint
+@router.get("/validate/{user_id}", response_model=Union[ValidationResponse, ValidationErrorResponse])
+async def validate_user_portfolio(
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Validate user portfolio data and return diagnostic information
+    
+    This endpoint helps debug analytics calculation issues by providing
+    detailed information about the user's portfolio state.
+    
+    - **user_id**: User ID to validate
+    
+    Returns diagnostic information about portfolio state and data availability.
+    """
+    try:
+        # Get basic portfolio data
+        portfolio_data = await AnalyticsService.get_portfolio_data(user_id, db)
+        
+        # Get portfolio history
+        history_df = await AnalyticsService.get_portfolio_history(user_id, db, 252)
+        
+        # Get returns
+        returns = await AnalyticsService.calculate_portfolio_returns(user_id, db, 252)
+        
+        total_value = sum(item["current_value"] for item in portfolio_data) if portfolio_data else 0
+        
+        return ValidationResponse(
+            user_id=user_id,
+            validation_timestamp=datetime.now().isoformat(),
+            portfolio_summary=PortfolioSummary(
+                has_holdings=len(portfolio_data) > 0,
+                total_holdings=len(portfolio_data),
+                total_portfolio_value=total_value,
+                holdings=portfolio_data
+            ),
+            historical_data=HistoricalDataInfo(
+                has_history=not history_df.empty,
+                history_records=len(history_df) if not history_df.empty else 0,
+                date_range={
+                    "start": str(history_df['date'].min()) if not history_df.empty else None,
+                    "end": str(history_df['date'].max()) if not history_df.empty else None
+                }
+            ),
+            returns_data=ReturnsDataInfo(
+                has_returns=not returns.empty,
+                return_observations=len(returns) if not returns.empty else 0,
+                sufficient_for_analytics=len(returns) >= 30 if not returns.empty else False
+            ),
+            analytics_readiness=AnalyticsReadiness(
+                can_calculate_var=len(returns) >= 30 and total_value > 0,
+                can_calculate_sharpe=len(returns) >= 30,
+                can_calculate_beta=len(returns) >= 30,
+                can_calculate_drawdown=len(history_df) >= 2 if not history_df.empty else False,
+                can_calculate_concentration=len(portfolio_data) > 0 and total_value > 0
+            ),
+            recommendations=_generate_recommendations(portfolio_data, history_df, returns, total_value)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error validating user portfolio {user_id}: {str(e)}")
+        return ValidationErrorResponse(
+            user_id=user_id,
+            validation_timestamp=datetime.now().isoformat(),
+            error=str(e),
+            status="validation_failed"
+        )
+
+
+def _generate_recommendations(portfolio_data, history_df, returns, total_value) -> List[str]:
+    """Generate recommendations based on portfolio validation"""
+    recommendations = []
+    
+    if not portfolio_data:
+        recommendations.append("Add holdings to your portfolio to enable analytics calculations")
+    elif total_value <= 0:
+        recommendations.append("Ensure portfolio holdings have positive values")
+    
+    if history_df.empty:
+        recommendations.append("Portfolio history tracking needs to be enabled")
+    elif len(history_df) < 30:
+        recommendations.append("Wait for more historical data to accumulate (need 30+ days)")
+    
+    if returns.empty:
+        recommendations.append("No return data available - check portfolio history")
+    elif len(returns) < 30:
+        recommendations.append(f"Need {30 - len(returns)} more days of return data for reliable analytics")
+    
+    if len(portfolio_data) == 1:
+        recommendations.append("Consider diversifying portfolio with additional holdings")
+    
+    if not recommendations:
+        recommendations.append("Portfolio is ready for all analytics calculations")
+    
+    return recommendations
