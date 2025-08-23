@@ -1,12 +1,12 @@
-.env.prod
 .env.test
+.env.prod
 *.pyt
 **__pycache__**
 app/static/news.json
 app/static/stocks.json
 sql/*
 .venv
-.augment
+.augment/
 .clinerules
 .github/
 app/static/uploads
