@@ -13,6 +13,7 @@ from typing import Dict, List, Tuple, Optional, Any
 from collections import deque
 import gym
 import warnings
+from tqdm import tqdm
 warnings.filterwarnings('ignore')
 
 
@@ -40,7 +41,7 @@ class ActorCritic(nn.Module):
                 nn.Linear(prev_dim, hidden_dim),
                 nn.ReLU(),
                 nn.Dropout(dropout),
-                nn.BatchNorm1d(hidden_dim)
+                nn.LayerNorm(hidden_dim)
             ])
             prev_dim = hidden_dim
         
@@ -435,7 +436,8 @@ class PortfolioPPOTrainer:
         """Train the PPO agent"""
         print(f"Starting PPO training for {self.max_episodes} episodes...")
         
-        for episode in range(self.max_episodes):
+        pbar = tqdm(range(self.max_episodes), desc="PPO Training", unit="episode")
+        for episode in pbar:
             state = self.env.reset()
             episode_reward = 0
             episode_length = 0
@@ -469,21 +471,20 @@ class PortfolioPPOTrainer:
             self.episode_rewards.append(episode_reward)
             self.episode_lengths.append(episode_length)
             
-            # Print progress
-            if episode % 10 == 0:
+            # Update tqdm with current stats
+            if len(self.episode_rewards) >= 10:
                 avg_reward = np.mean(self.episode_rewards[-10:])
-                print(f"Episode {episode}, Avg Reward: {avg_reward:.4f}, "
-                      f"Episode Length: {episode_length}")
-                
-                if update_stats:
-                    print(f"  Actor Loss: {update_stats.get('actor_loss', 0):.6f}, "
-                          f"Critic Loss: {update_stats.get('critic_loss', 0):.6f}")
+                pbar.set_postfix({
+                    'Avg Reward': f'{avg_reward:.4f}',
+                    'Episode Reward': f'{episode_reward:.4f}',
+                    'Steps': episode_length
+                })
             
             # Evaluation
             if episode % self.eval_frequency == 0 and episode > 0:
                 eval_reward = self.evaluate_agent()
                 self.evaluation_rewards.append(eval_reward)
-                print(f"Evaluation at episode {episode}: Reward = {eval_reward:.4f}")
+                pbar.write(f"🎯 Evaluation at episode {episode}: Reward = {eval_reward:.4f}")
             
             # Save model
             if save_path and episode % self.save_frequency == 0 and episode > 0:

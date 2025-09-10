@@ -13,6 +13,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import joblib
 import warnings
+from tqdm import tqdm
 warnings.filterwarnings('ignore')
 
 
@@ -186,7 +187,7 @@ class LSTMPredictor:
         # Setup training
         criterion = nn.MSELoss()
         optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=1e-5)
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5, verbose=True)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5)
         
         best_val_loss = float('inf')
         patience_counter = 0
@@ -195,7 +196,8 @@ class LSTMPredictor:
         
         print(f"Training LSTM model on {len(X_train)} samples...")
         
-        for epoch in range(epochs):
+        pbar = tqdm(range(epochs), desc="LSTM Training", unit="epoch")
+        for epoch in pbar:
             # Training phase
             self.model.train()
             train_loss = 0
@@ -235,8 +237,13 @@ class LSTMPredictor:
             
             scheduler.step(avg_val_loss)
             
-            if epoch % 10 == 0:
-                print(f'Epoch [{epoch+1}/{epochs}], Train Loss: {avg_train_loss:.6f}, Val Loss: {avg_val_loss:.6f}')
+            # Update tqdm with current stats
+            pbar.set_postfix({
+                'Train Loss': f'{avg_train_loss:.6f}',
+                'Val Loss': f'{avg_val_loss:.6f}',
+                'Best Val': f'{best_val_loss:.6f}',
+                'Patience': f'{patience_counter}/{early_stopping_patience}'
+            })
             
             # Early stopping
             if avg_val_loss < best_val_loss:
@@ -248,7 +255,7 @@ class LSTMPredictor:
                 patience_counter += 1
                 
             if patience_counter >= early_stopping_patience:
-                print(f"Early stopping at epoch {epoch+1}")
+                pbar.write(f"Early stopping at epoch {epoch+1}")
                 break
         
         # Load best model
@@ -281,9 +288,13 @@ class LSTMPredictor:
         """
         predictions = {}
         
+        # Early exit if no stocks were trained
+        if not self.trained_stocks:
+            print("Warning: No stocks were trained. Returning empty predictions.")
+            return predictions
+        
         for symbol in stock_symbols:
             if symbol not in self.trained_stocks:
-                print(f"Warning: {symbol} not in trained stocks. Skipping.")
                 continue
             
             # Get recent data for the stock

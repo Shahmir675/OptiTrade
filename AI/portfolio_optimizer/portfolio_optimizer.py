@@ -202,7 +202,7 @@ class PortfolioOptimizer:
             eps_clip=eps_clip
         )
         
-        # Create trainer
+        # Create trainer (will be updated with episodes during training)
         self.trainer = PortfolioPPOTrainer(
             env=self.environment,
             agent=self.ppo_agent
@@ -217,28 +217,35 @@ class PortfolioOptimizer:
                    save_models: bool = True):
         """Train the complete system (LSTM + PPO)"""
         print("Starting comprehensive system training...")
+        print(f"Target LSTM epochs: {lstm_epochs}")
+        print(f"Target PPO episodes: {ppo_episodes}")
         
         # Step 1: Train LSTM predictor
         print("\n=== Phase 1: Training LSTM Predictor ===")
+        print("Status: Initializing LSTM predictor...")
         lstm_success = self.initialize_lstm_predictor(epochs=lstm_epochs)
         
         if not lstm_success:
-            print("LSTM training failed. Continuing with PPO training...")
+            print("❌ LSTM training failed. Continuing with PPO training...")
+        else:
+            print("✅ LSTM training completed successfully")
         
         # Step 2: Initialize and train PPO agent
         print("\n=== Phase 2: Training PPO Agent ===")
+        print("Status: Initializing PPO agent and environment...")
         ppo_success = self.initialize_ppo_agent()
         
         if not ppo_success:
-            print("PPO initialization failed")
+            print("❌ PPO initialization failed")
             return False
         
+        print("✅ PPO agent initialized successfully")
+        
         # Train PPO
+        print(f"Status: Starting PPO training for {ppo_episodes} episodes...")
         save_path = "portfolio_ppo_model" if save_models else None
-        training_results = self.trainer.train(
-            max_episodes=ppo_episodes,
-            save_path=save_path
-        )
+        self.trainer.max_episodes = ppo_episodes  # Set episodes for this training run
+        training_results = self.trainer.train(save_path=save_path)
         
         self.optimization_results = {
             'lstm_trained': lstm_success,
@@ -246,13 +253,25 @@ class PortfolioOptimizer:
             'final_evaluation': self.evaluate_system()
         }
         
-        print("\n=== Training Complete ===")
-        print(f"LSTM Training: {'Success' if lstm_success else 'Failed'}")
-        print(f"PPO Episodes: {ppo_episodes}")
+        print("\n=== 🎯 Training Complete ===")
+        print(f"LSTM Training: {'✅ Success' if lstm_success else '❌ Failed'}")
+        print(f"PPO Episodes Completed: {len(training_results.get('episode_rewards', []))}/{ppo_episodes}")
         
-        if training_results['episode_rewards']:
+        if training_results.get('episode_rewards'):
             avg_final_reward = np.mean(training_results['episode_rewards'][-10:])
-            print(f"Final Average Reward: {avg_final_reward:.4f}")
+            max_reward = max(training_results['episode_rewards'])
+            print(f"📈 Final Average Reward (last 10 episodes): {avg_final_reward:.4f}")
+            print(f"🏆 Best Episode Reward: {max_reward:.4f}")
+            print(f"📊 Training Progress: {len(training_results['episode_rewards'])} episodes completed")
+        else:
+            print("⚠️  No training rewards recorded")
+        
+        # System evaluation
+        evaluation = self.evaluate_system()
+        if evaluation:
+            print(f"🔍 System Evaluation Score: {evaluation.get('total_score', 'N/A')}")
+        
+        print(f"💾 Models Saved: {'Yes' if save_models else 'No'}")
         
         return True
     

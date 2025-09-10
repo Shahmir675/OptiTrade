@@ -5,3 +5,4 @@ finvizfinance
 app/static
 AI/10_Year**
 .augment
+AI/portfolio_optimizer/test/historical_data.csv
