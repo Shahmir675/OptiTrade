@@ -295,20 +295,30 @@ class PPOAgent:
     
     def _calculate_gae(self, rewards, values, dones):
         """Calculate Generalized Advantage Estimation"""
-        advantages = torch.zeros_like(rewards)
+        # GAE needs one extra value for bootstrapping, so values should be length n+1
+        # where n is the number of steps
+        n_steps = len(rewards)
+        advantages = torch.zeros(n_steps)
+        returns = torch.zeros(n_steps)
         gae = 0
         
-        for t in reversed(range(len(rewards) - 1)):
-            if t == len(rewards) - 1:
-                next_value = 0 if dones[t] else values[t]
+        # Work backwards from the last timestep
+        for t in reversed(range(n_steps)):
+            # For the last timestep, next_value is 0 if episode ends, otherwise bootstrap value
+            if t == n_steps - 1:
+                next_value = 0 if dones[t] else values[t + 1] if t + 1 < len(values) else 0
             else:
                 next_value = values[t + 1]
             
+            # Calculate TD error (temporal difference)
             delta = rewards[t] + self.gamma * next_value - values[t]
+            
+            # Calculate GAE
             gae = delta + self.gamma * self.gae_lambda * gae * (1 - dones[t])
             advantages[t] = gae
-        
-        returns = advantages + values[:-1]  # Remove last value
+            
+            # Returns are advantages + values (for the current state)
+            returns[t] = gae + values[t]
         
         return advantages, returns
     
