@@ -99,68 +99,145 @@ class StockDataLoader:
             
         return top_stocks
     
-    def fetch_fresh_data(self, symbols: List[str], period: str = "2y", interval: str = "1d") -> pd.DataFrame:
+    def fetch_fresh_data(self, symbols: List[str], period: str = "2y", interval: str = "1d", 
+                          batch_size: int = 50, max_workers: int = 10) -> pd.DataFrame:
         """
-        Fetch fresh historical data from yfinance for given symbols
+        Fetch fresh historical data from yfinance for given symbols with parallel processing
         
         Args:
             symbols: List of stock symbols to fetch
             period: Data period (1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max)
             interval: Data interval (1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo)
+            batch_size: Number of symbols to fetch at once using yfinance download
+            max_workers: Maximum number of parallel workers
         """
-        print(f"Fetching fresh data for {len(symbols)} symbols...")
+        import time
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        start_time = time.time()
+        print(f"🚀 Starting bulk data fetch for {len(symbols)} symbols (period: {period})")
+        
         all_data = []
         failed_symbols = []
+        successful_count = 0
         
-        for symbol in symbols:
+        # Split symbols into batches for bulk download
+        symbol_batches = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]
+        
+        def fetch_batch(batch_symbols):
+            """Fetch a batch of symbols using yfinance bulk download"""
+            batch_data = []
+            batch_failed = []
+            
             try:
-                # Use session if available for better reliability
-                ticker = yf.Ticker(symbol, session=self.session)
-                data = ticker.history(period=period, interval=interval)
+                print(f"  📊 Fetching batch of {len(batch_symbols)} symbols: {', '.join(batch_symbols[:3])}{'...' if len(batch_symbols) > 3 else ''}")
                 
-                if not data.empty:
-                    # Reset index to get Date as a column
-                    data = data.reset_index()
-                    data['Ticker'] = symbol
-                    
-                    # Handle missing Adj Close column (use Close as fallback)
-                    if 'Adj Close' not in data.columns and 'Close' in data.columns:
-                        data['Adj Close'] = data['Close']
-                    
-                    # Standardize column names
-                    data = data.rename(columns={
-                        'Date': 'Date',
-                        'Open': 'Open',
-                        'High': 'High', 
-                        'Low': 'Low',
-                        'Close': 'Close',
-                        'Adj Close': 'Adj Close',
-                        'Volume': 'Volume'
-                    })
-                    
-                    # Select only available columns
-                    required_cols = ['Date', 'Ticker']
-                    optional_cols = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
-                    available_cols = required_cols + [col for col in optional_cols if col in data.columns]
-                    
-                    all_data.append(data[available_cols])
+                # Use yfinance bulk download for speed
+                data = yf.download(batch_symbols, period=period, interval=interval, 
+                                 group_by='ticker', threads=True, progress=False)
+                
+                if data.empty:
+                    print(f"  ❌ No data returned for batch")
+                    return [], batch_symbols
+                
+                # Handle single vs multiple symbols
+                if len(batch_symbols) == 1:
+                    symbol = batch_symbols[0]
+                    if not data.empty:
+                        processed_data = self._process_single_symbol_data(data, symbol)
+                        if processed_data is not None:
+                            batch_data.append(processed_data)
+                            print(f"  ✅ {symbol}: {len(processed_data)} records")
+                        else:
+                            batch_failed.append(symbol)
+                            print(f"  ❌ {symbol}: processing failed")
                 else:
-                    failed_symbols.append(symbol)
-                    
+                    # Process multiple symbols
+                    for symbol in batch_symbols:
+                        if symbol in data.columns.levels[0]:
+                            symbol_data = data[symbol]
+                            if not symbol_data.empty and not symbol_data.isna().all().all():
+                                processed_data = self._process_single_symbol_data(symbol_data, symbol)
+                                if processed_data is not None:
+                                    batch_data.append(processed_data)
+                                    print(f"  ✅ {symbol}: {len(processed_data)} records")
+                                else:
+                                    batch_failed.append(symbol)
+                                    print(f"  ❌ {symbol}: processing failed")
+                            else:
+                                batch_failed.append(symbol)
+                                print(f"  ❌ {symbol}: no data")
+                        else:
+                            batch_failed.append(symbol)
+                            print(f"  ❌ {symbol}: not in response")
+                            
             except Exception as e:
-                print(f"Failed to fetch data for {symbol}: {e}")
-                failed_symbols.append(symbol)
+                print(f"  💥 Batch fetch error: {e}")
+                batch_failed = batch_symbols
+            
+            return batch_data, batch_failed
+        
+        # Process batches in parallel
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_batch = {executor.submit(fetch_batch, batch): batch for batch in symbol_batches}
+            
+            for future in as_completed(future_to_batch):
+                batch = future_to_batch[future]
+                try:
+                    batch_data, batch_failed = future.result()
+                    all_data.extend(batch_data)
+                    failed_symbols.extend(batch_failed)
+                    successful_count += len(batch_data)
+                    
+                    elapsed = time.time() - start_time
+                    print(f"  ⏱️  Batch complete. Progress: {successful_count}/{len(symbols)} successful ({elapsed:.1f}s)")
+                    
+                except Exception as e:
+                    print(f"  💥 Batch processing error: {e}")
+                    failed_symbols.extend(batch)
+        
+        # Summary
+        elapsed = time.time() - start_time
+        success_rate = (successful_count / len(symbols)) * 100 if symbols else 0
         
         if failed_symbols:
-            print(f"Failed to fetch data for {len(failed_symbols)} symbols: {failed_symbols[:5]}{'...' if len(failed_symbols) > 5 else ''}")
+            print(f"❌ Failed symbols ({len(failed_symbols)}): {failed_symbols[:10]}{'...' if len(failed_symbols) > 10 else ''}")
         
         if all_data:
             combined_data = pd.concat(all_data, ignore_index=True)
             combined_data['Date'] = pd.to_datetime(combined_data['Date'])
-            print(f"Successfully fetched {len(combined_data)} records")
+            print(f"🎉 Data fetch complete: {len(combined_data)} records from {successful_count} symbols")
+            print(f"📈 Success rate: {success_rate:.1f}% | Time: {elapsed:.1f}s | Rate: {len(combined_data)/elapsed:.0f} records/sec")
             return combined_data
         else:
+            print(f"💥 No data fetched from any symbol")
             return pd.DataFrame()
+
+    def _process_single_symbol_data(self, data, symbol):
+        """Process data for a single symbol"""
+        try:
+            if data.empty:
+                return None
+                
+            # Reset index to get Date as a column
+            processed = data.reset_index()
+            processed['Ticker'] = symbol
+            
+            # Handle missing Adj Close column (use Close as fallback)
+            if 'Adj Close' not in processed.columns and 'Close' in processed.columns:
+                processed['Adj Close'] = processed['Close']
+                print(f"  ⚠️  {symbol}: Using Close as Adj Close fallback")
+            
+            # Select only available columns
+            required_cols = ['Date', 'Ticker']
+            optional_cols = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+            available_cols = required_cols + [col for col in optional_cols if col in processed.columns]
+            
+            return processed[available_cols]
+            
+        except Exception as e:
+            print(f"  💥 {symbol}: Processing error: {e}")
+            return None
 
     def load_historical_data(self) -> pd.DataFrame:
         """Load historical price data"""
@@ -175,6 +252,11 @@ class StockDataLoader:
         """
         Update existing historical data with fresh data from yfinance
         """
+        import time
+        start_time = time.time()
+        
+        print(f"📚 Starting historical data update for {len(symbols)} symbols")
+        
         # Load existing data
         existing_data = self.load_historical_data() if self.historical_csv_path else pd.DataFrame()
         
@@ -182,38 +264,63 @@ class StockDataLoader:
             # Find the most recent date in existing data
             latest_date = existing_data['Date'].max()
             days_behind = (datetime.now() - latest_date).days
+            existing_records = len(existing_data)
+            unique_tickers = existing_data['Ticker'].nunique()
             
-            print(f"Existing data ends at {latest_date.strftime('%Y-%m-%d')}, {days_behind} days behind")
+            print(f"📊 Existing data: {existing_records:,} records from {unique_tickers} tickers")
+            print(f"📅 Latest data: {latest_date.strftime('%Y-%m-%d')} ({days_behind} days behind)")
             
             if days_behind <= 1:
-                print("Data is already up to date")
+                print("✅ Data is already up to date")
                 return existing_data
+        else:
+            print("📂 No existing historical data found, fetching fresh data")
         
         # Fetch fresh data for the symbols
+        print(f"🔄 Fetching fresh data...")
         fresh_data = self.fetch_fresh_data(symbols, period="1y")
         
         if fresh_data.empty:
-            print("No fresh data fetched, returning existing data")
+            print("❌ No fresh data fetched, returning existing data")
             return existing_data if not existing_data.empty else pd.DataFrame()
         
+        print(f"📥 Fresh data: {len(fresh_data):,} records from {fresh_data['Ticker'].nunique()} tickers")
+        
         if not existing_data.empty:
+            print("🔀 Merging with existing data...")
             # Merge with existing data, removing duplicates
             # Keep fresh data for overlapping dates
             combined = pd.concat([existing_data, fresh_data], ignore_index=True)
             
+            before_dedup = len(combined)
             # Remove duplicates, keeping the latest (fresh) data
             combined = combined.sort_values(['Ticker', 'Date'])
             combined = combined.drop_duplicates(subset=['Ticker', 'Date'], keep='last')
+            after_dedup = len(combined)
+            
+            print(f"🧹 Removed {before_dedup - after_dedup:,} duplicate records")
         else:
             combined = fresh_data
         
         # Sort by ticker and date
         combined = combined.sort_values(['Ticker', 'Date']).reset_index(drop=True)
         
+        # Summary statistics
+        final_records = len(combined)
+        final_tickers = combined['Ticker'].nunique()
+        date_range = f"{combined['Date'].min().strftime('%Y-%m-%d')} to {combined['Date'].max().strftime('%Y-%m-%d')}"
+        
+        print(f"📈 Final dataset: {final_records:,} records from {final_tickers} tickers ({date_range})")
+        
         # Save updated data
         if save_path:
+            print(f"💾 Saving to {save_path}...")
             combined.to_csv(save_path, index=False)
-            print(f"Updated historical data saved to {save_path}")
+            file_size_mb = pd.read_csv(save_path).memory_usage(deep=True).sum() / 1024 / 1024
+            print(f"✅ Updated historical data saved ({file_size_mb:.1f} MB)")
+        
+        elapsed = time.time() - start_time
+        print(f"⏱️  Update complete in {elapsed:.1f}s")
         
         self.historical_data = combined
         return combined
