@@ -489,19 +489,50 @@ class PortfolioPPOTrainer:
         self.episode_lengths = []
         self.evaluation_rewards = []
         
+        # Portfolio performance tracking
+        self.portfolio_returns = []
+        self.sharpe_ratios = []
+        self.max_drawdowns = []
+        self.volatilities = []
+        
+        # Learning progress tracking
+        self.policy_losses = []
+        self.value_losses = []
+        self.entropy_losses = []
+        self.total_losses = []
+        self.learning_rates = []
+        
+        # Portfolio allocation tracking
+        self.avg_portfolio_weights = []
+        self.portfolio_turnover = []
+        
     def train(self, save_path: str = None) -> Dict[str, List]:
-        """Train the PPO agent"""
-        print(f"Starting PPO training for {self.max_episodes} episodes...")
+        """Train the PPO agent with comprehensive monitoring"""
+        import time
+        
+        print(f"🚀 Starting comprehensive PPO training for {self.max_episodes} episodes...")
+        print(f"📊 Monitoring: Portfolio Performance + Learning Dynamics + Risk Metrics")
+        
+        # Initialize tracking variables
+        best_sharpe = -np.inf
+        best_return = -np.inf
+        consecutive_improvements = 0
         
         pbar = tqdm(range(self.max_episodes), desc="PPO Training", unit="episode")
+        
         for episode in pbar:
+            # Reset episode tracking
             state = self.env.reset()
             episode_reward = 0
             episode_length = 0
+            episode_actions = []
+            episode_start_time = time.time()
             
+            # Episode loop
             for step in range(self.max_steps_per_episode):
                 # Get action
                 action, value = self.agent.get_action(state)
+                episode_actions.append(action.copy())
                 
                 # Take environment step
                 next_state, reward, done, info = self.env.step(action)
@@ -521,21 +552,154 @@ class PortfolioPPOTrainer:
                 if done:
                     break
             
-            # Update agent
+            episode_time = time.time() - episode_start_time
+            
+            # Update agent and get learning statistics
             update_stats = self.agent.update()
             
-            # Record statistics
+            # Extract portfolio metrics from environment
+            try:
+                env_values = getattr(self.env, 'portfolio_values', [self.env.initial_balance])
+                if len(env_values) > 1:
+                    values = np.array(env_values[-min(252, len(env_values)):])  # Last year of data
+                    returns = np.diff(values) / np.maximum(values[:-1], 1e-8)
+                    returns = returns[np.isfinite(returns)]
+                    
+                    total_return = (values[-1] - values[0]) / values[0] if values[0] > 0 else 0.0
+                    volatility = np.std(returns) * np.sqrt(252) if len(returns) > 0 else 0.0
+                    sharpe_ratio = (np.mean(returns) * 252 - 0.02) / volatility if volatility > 0 else 0.0
+                    
+                    # Calculate max drawdown
+                    peak = np.maximum.accumulate(values)
+                    drawdown = (values - peak) / np.maximum(peak, 1e-8)
+                    max_drawdown = np.min(drawdown) if len(drawdown) > 0 else 0.0
+                    
+                    portfolio_metrics = {
+                        'total_return': total_return,
+                        'volatility': volatility,
+                        'sharpe_ratio': sharpe_ratio,
+                        'max_drawdown': max_drawdown
+                    }
+                else:
+                    portfolio_metrics = {'total_return': 0.0, 'volatility': 0.0, 'sharpe_ratio': 0.0, 'max_drawdown': 0.0}
+            except:
+                portfolio_metrics = {'total_return': 0.0, 'volatility': 0.0, 'sharpe_ratio': 0.0, 'max_drawdown': 0.0}
+            
+            # Record comprehensive statistics
             self.episode_rewards.append(episode_reward)
             self.episode_lengths.append(episode_length)
+            self.portfolio_returns.append(portfolio_metrics.get('total_return', 0.0))
+            self.sharpe_ratios.append(portfolio_metrics.get('sharpe_ratio', 0.0))
+            self.max_drawdowns.append(portfolio_metrics.get('max_drawdown', 0.0))
+            self.volatilities.append(portfolio_metrics.get('volatility', 0.0))
             
-            # Update tqdm with current stats
-            if len(self.episode_rewards) >= 10:
-                avg_reward = np.mean(self.episode_rewards[-10:])
+            # Record learning statistics
+            if update_stats:
+                self.policy_losses.append(update_stats.get('policy_loss', 0.0))
+                self.value_losses.append(update_stats.get('value_loss', 0.0))
+                self.entropy_losses.append(update_stats.get('entropy_loss', 0.0))
+                self.total_losses.append(update_stats.get('total_loss', 0.0))
+            else:
+                self.policy_losses.append(0.0)
+                self.value_losses.append(0.0)
+                self.entropy_losses.append(0.0)
+                self.total_losses.append(0.0)
+            
+            # Portfolio allocation analysis
+            if episode_actions:
+                avg_weights = np.mean(episode_actions, axis=0)
+                self.avg_portfolio_weights.append(avg_weights)
+                
+                # Calculate turnover (how much portfolio changed)
+                if len(self.avg_portfolio_weights) > 1:
+                    prev_weights = self.avg_portfolio_weights[-2]
+                    turnover = np.sum(np.abs(avg_weights - prev_weights))
+                    self.portfolio_turnover.append(turnover)
+                else:
+                    self.portfolio_turnover.append(0.0)
+            else:
+                self.avg_portfolio_weights.append(np.zeros(self.env.action_space.shape[0]))
+                self.portfolio_turnover.append(0.0)
+            
+            # Learning rate tracking
+            current_lr = self.agent.optimizer.param_groups[0]['lr']
+            self.learning_rates.append(current_lr)
+            
+            # Performance tracking
+            current_sharpe = self.sharpe_ratios[-1]
+            current_return = self.portfolio_returns[-1]
+            
+            if current_sharpe > best_sharpe:
+                best_sharpe = current_sharpe
+                consecutive_improvements += 1
+            else:
+                consecutive_improvements = 0
+                
+            if current_return > best_return:
+                best_return = current_return
+            
+            # Comprehensive TQDM display
+            if len(self.episode_rewards) >= 5:
+                # Rolling averages (last 5 episodes for faster updates)
+                window = min(10, len(self.episode_rewards))
+                avg_reward = np.mean(self.episode_rewards[-window:])
+                avg_return = np.mean(self.portfolio_returns[-window:])
+                avg_sharpe = np.mean(self.sharpe_ratios[-window:])
+                avg_volatility = np.mean(self.volatilities[-window:])
+                avg_drawdown = np.mean(self.max_drawdowns[-window:])
+                avg_turnover = np.mean(self.portfolio_turnover[-window:]) if len(self.portfolio_turnover) >= window else 0.0
+                
+                # Learning metrics
+                avg_policy_loss = np.mean(self.policy_losses[-window:]) if self.policy_losses[-window:] else 0.0
+                avg_value_loss = np.mean(self.value_losses[-window:]) if self.value_losses[-window:] else 0.0
+                
+                # Determine trend arrows
+                if len(self.episode_rewards) > 20:
+                    recent_avg = np.mean(self.episode_rewards[-10:])
+                    older_avg = np.mean(self.episode_rewards[-20:-10])
+                    reward_trend = "📈" if recent_avg > older_avg else "📉"
+                    
+                    recent_sharpe = np.mean(self.sharpe_ratios[-10:])
+                    older_sharpe = np.mean(self.sharpe_ratios[-20:-10])
+                    sharpe_trend = "📈" if recent_sharpe > older_sharpe else "📉"
+                else:
+                    reward_trend = sharpe_trend = "➡️"
+                
                 pbar.set_postfix({
-                    'Avg Reward': f'{avg_reward:.4f}',
-                    'Episode Reward': f'{episode_reward:.4f}',
-                    'Steps': episode_length
+                    'Reward': f'{reward_trend}{avg_reward:.3f}',
+                    'Return': f'{avg_return:.1%}',
+                    'Sharpe': f'{sharpe_trend}{avg_sharpe:.2f}',
+                    'Vol': f'{avg_volatility:.1%}',
+                    'DD': f'{avg_drawdown:.1%}',
+                    'Turn': f'{avg_turnover:.2f}',
+                    'P_Loss': f'{avg_policy_loss:.3f}',
+                    'V_Loss': f'{avg_value_loss:.3f}',
+                    'LR': f'{current_lr:.1e}',
+                    'Time': f'{episode_time:.1f}s'
                 })
+            
+            # Periodic detailed reporting
+            if episode > 0 and episode % 50 == 0:
+                window = min(50, len(self.episode_rewards))
+                recent_performance = {
+                    'episodes': f'{episode-window+1}-{episode}',
+                    'avg_reward': np.mean(self.episode_rewards[-window:]),
+                    'avg_return': np.mean(self.portfolio_returns[-window:]),
+                    'avg_sharpe': np.mean(self.sharpe_ratios[-window:]),
+                    'avg_volatility': np.mean(self.volatilities[-window:]),
+                    'min_drawdown': np.min(self.max_drawdowns[-window:]),
+                    'avg_turnover': np.mean(self.portfolio_turnover[-window:]) if len(self.portfolio_turnover) >= window else 0.0,
+                    'best_sharpe': best_sharpe,
+                    'best_return': best_return
+                }
+                
+                pbar.write(f"""
+📊 Performance Report (Episodes {recent_performance['episodes']}):
+   💰 Return: {recent_performance['avg_return']:.2%} (Best: {recent_performance['best_return']:.2%})
+   📈 Sharpe: {recent_performance['avg_sharpe']:.3f} (Best: {best_sharpe:.3f})
+   📉 Max DD: {recent_performance['min_drawdown']:.2%} | Vol: {recent_performance['avg_volatility']:.2%}
+   🔄 Turnover: {recent_performance['avg_turnover']:.3f} | Reward: {recent_performance['avg_reward']:.4f}
+                """.strip())
             
             # Evaluation
             if episode % self.eval_frequency == 0 and episode > 0:
@@ -543,19 +707,42 @@ class PortfolioPPOTrainer:
                 self.evaluation_rewards.append(eval_reward)
                 pbar.write(f"🎯 Evaluation at episode {episode}: Reward = {eval_reward:.4f}")
             
-            # Save model
+            # Save model with performance info
             if save_path and episode % self.save_frequency == 0 and episode > 0:
-                model_path = f"{save_path}_episode_{episode}.pth"
+                model_path = f"{save_path}_ep{episode}_sharpe{best_sharpe:.3f}.pth"
                 self.agent.save_model(model_path)
+                pbar.write(f"💾 Model saved: {model_path}")
         
         # Final save
         if save_path:
-            self.agent.save_model(f"{save_path}_final.pth")
+            final_path = f"{save_path}_final_sharpe{best_sharpe:.3f}.pth"
+            self.agent.save_model(final_path)
+        
+        # Final training summary
+        print(f"""
+🎉 PPO Training Complete! 
+📈 Best Performance:
+   • Return: {best_return:.2%}
+   • Sharpe Ratio: {best_sharpe:.3f}
+   • Min Drawdown: {min(self.max_drawdowns) if self.max_drawdowns else 0:.2%}
+   • Avg Volatility: {np.mean(self.volatilities) if self.volatilities else 0:.2%}
+        """.strip())
         
         return {
             'episode_rewards': self.episode_rewards,
             'episode_lengths': self.episode_lengths,
-            'evaluation_rewards': self.evaluation_rewards
+            'evaluation_rewards': self.evaluation_rewards,
+            'portfolio_returns': self.portfolio_returns,
+            'sharpe_ratios': self.sharpe_ratios,
+            'max_drawdowns': self.max_drawdowns,
+            'volatilities': self.volatilities,
+            'policy_losses': self.policy_losses,
+            'value_losses': self.value_losses,
+            'entropy_losses': self.entropy_losses,
+            'total_losses': self.total_losses,
+            'learning_rates': self.learning_rates,
+            'portfolio_weights': self.avg_portfolio_weights,
+            'portfolio_turnover': self.portfolio_turnover
         }
     
     def evaluate_agent(self, num_episodes: int = 5) -> float:
