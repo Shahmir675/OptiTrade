@@ -205,7 +205,7 @@ class PortfolioOptimizationEnv(gym.Env):
         return returns
     
     def _calculate_portfolio_metrics(self) -> Dict[str, float]:
-        """Calculate current portfolio performance metrics"""
+        """Calculate current portfolio performance metrics with NaN protection"""
         if len(self.portfolio_values) < 2:
             return {
                 'total_return': 0.0,
@@ -216,31 +216,63 @@ class PortfolioOptimizationEnv(gym.Env):
             }
         
         values = np.array(self.portfolio_values)
-        returns = np.diff(values) / values[:-1]
         
-        # Total return
-        total_return = (values[-1] - values[0]) / values[0]
+        # Ensure values are positive and non-zero to prevent division by zero
+        values = np.maximum(values, 1e-8)  # Minimum value to prevent division by zero
+        
+        # Calculate returns with safety checks
+        denominator = values[:-1]
+        denominator = np.where(denominator == 0, 1e-8, denominator)  # Avoid division by zero
+        returns = np.diff(values) / denominator
+        
+        # Remove any NaN/inf returns
+        returns = returns[np.isfinite(returns)]
+        
+        # Total return with safety
+        if values[0] > 0:
+            total_return = (values[-1] - values[0]) / values[0]
+            if not np.isfinite(total_return):
+                total_return = 0.0
+        else:
+            total_return = 0.0
         
         # Volatility (annualized)
         if len(returns) > 1:
             volatility = np.std(returns) * np.sqrt(252)
+            if not np.isfinite(volatility):
+                volatility = 0.0
         else:
             volatility = 0.0
         
-        # Sharpe ratio
-        if volatility > 0:
-            excess_return = np.mean(returns) * 252 - self.risk_free_rate
-            sharpe_ratio = excess_return / volatility
+        # Sharpe ratio with safety
+        if volatility > 1e-8 and len(returns) > 0:
+            mean_return = np.mean(returns)
+            if np.isfinite(mean_return):
+                excess_return = mean_return * 252 - self.risk_free_rate
+                sharpe_ratio = excess_return / volatility
+                if not np.isfinite(sharpe_ratio):
+                    sharpe_ratio = 0.0
+            else:
+                sharpe_ratio = 0.0
         else:
             sharpe_ratio = 0.0
         
-        # Maximum drawdown
+        # Maximum drawdown with safety
         peak = np.maximum.accumulate(values)
+        peak = np.maximum(peak, 1e-8)  # Avoid division by zero
         drawdown = (values - peak) / peak
+        drawdown = drawdown[np.isfinite(drawdown)]
         max_drawdown = np.min(drawdown) if len(drawdown) > 0 else 0.0
+        if not np.isfinite(max_drawdown):
+            max_drawdown = 0.0
         
-        # Cash ratio
-        cash_ratio = self.cash_balance / self.total_value
+        # Cash ratio with safety
+        if self.total_value > 0:
+            cash_ratio = self.cash_balance / self.total_value
+            if not np.isfinite(cash_ratio):
+                cash_ratio = 1.0
+        else:
+            cash_ratio = 1.0
         
         return {
             'total_return': float(total_return),
@@ -304,21 +336,25 @@ class PortfolioOptimizationEnv(gym.Env):
         }
     
     def _get_observation(self, current_date) -> np.ndarray:
-        """Get current observation state"""
+        """Get current observation state with NaN protection"""
         obs = []
         
-        # Current portfolio weights
-        obs.extend(self.current_portfolio)
+        # Current portfolio weights (should be safe)
+        portfolio_weights = np.array(self.current_portfolio)
+        portfolio_weights = np.nan_to_num(portfolio_weights, nan=0.0, posinf=0.0, neginf=0.0)
+        obs.extend(portfolio_weights)
         
-        # Recent returns (flattened)
+        # Recent returns (flattened) - protect against NaN
         recent_returns = self._get_current_returns(current_date)
+        recent_returns = np.nan_to_num(recent_returns, nan=0.0, posinf=1.0, neginf=-1.0)
         obs.extend(recent_returns.flatten())
         
-        # LSTM predictions
+        # LSTM predictions - protect against NaN
         lstm_preds = self._get_lstm_predictions(current_date)
+        lstm_preds = np.nan_to_num(lstm_preds, nan=0.0, posinf=1.0, neginf=-1.0)
         obs.extend(lstm_preds)
         
-        # Portfolio metrics
+        # Portfolio metrics (already protected in the function)
         portfolio_metrics = self._calculate_portfolio_metrics()
         obs.extend([
             portfolio_metrics['total_return'],
@@ -328,19 +364,25 @@ class PortfolioOptimizationEnv(gym.Env):
             portfolio_metrics['cash_ratio']
         ])
         
-        # Sector diversification
+        # Sector diversification - protect against NaN
         sector_div = self._calculate_sector_diversification()
+        sector_div = 0.0 if not np.isfinite(sector_div) else sector_div
         obs.append(sector_div)
         
-        # Risk metrics
+        # Risk metrics - protect against NaN
         risk_metrics = self._calculate_risk_metrics(current_date)
-        obs.extend([
-            risk_metrics['beta'],
-            risk_metrics['var'],
-            risk_metrics['expected_shortfall']
-        ])
+        safe_risk_metrics = []
+        for key in ['beta', 'var', 'expected_shortfall']:
+            val = risk_metrics.get(key, 0.0)
+            val = 0.0 if not np.isfinite(val) else val
+            safe_risk_metrics.append(val)
+        obs.extend(safe_risk_metrics)
         
-        return np.array(obs, dtype=np.float32)
+        # Final safety check - ensure entire observation is clean
+        obs_array = np.array(obs, dtype=np.float32)
+        obs_array = np.nan_to_num(obs_array, nan=0.0, posinf=1.0, neginf=-1.0)
+        
+        return obs_array
     
     def _calculate_reward(self, current_date, new_weights: np.ndarray) -> float:
         """Calculate reward for current action"""
