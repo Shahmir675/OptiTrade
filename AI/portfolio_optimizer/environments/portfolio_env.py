@@ -5,8 +5,8 @@ Includes risk management, sector diversification, and LSTM price predictions
 
 import numpy as np
 import pandas as pd
-import gym
-from gym import spaces
+import gymnasium as gym
+from gymnasium import spaces
 from typing import Dict, List, Tuple, Optional, Any
 import warnings
 warnings.filterwarnings('ignore')

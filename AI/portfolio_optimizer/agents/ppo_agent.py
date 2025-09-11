@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from typing import Dict, List, Tuple, Optional, Any
 from collections import deque
-import gym
+import gymnasium as gym
 import warnings
 from tqdm import tqdm
 warnings.filterwarnings('ignore')

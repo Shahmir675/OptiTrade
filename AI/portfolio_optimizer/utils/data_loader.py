@@ -123,6 +123,10 @@ class StockDataLoader:
                     data = data.reset_index()
                     data['Ticker'] = symbol
                     
+                    # Handle missing Adj Close column (use Close as fallback)
+                    if 'Adj Close' not in data.columns and 'Close' in data.columns:
+                        data['Adj Close'] = data['Close']
+                    
                     # Standardize column names
                     data = data.rename(columns={
                         'Date': 'Date',
@@ -134,7 +138,12 @@ class StockDataLoader:
                         'Volume': 'Volume'
                     })
                     
-                    all_data.append(data[['Date', 'Ticker', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']])
+                    # Select only available columns
+                    required_cols = ['Date', 'Ticker']
+                    optional_cols = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+                    available_cols = required_cols + [col for col in optional_cols if col in data.columns]
+                    
+                    all_data.append(data[available_cols])
                 else:
                     failed_symbols.append(symbol)
                     
