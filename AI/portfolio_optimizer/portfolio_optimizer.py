@@ -403,9 +403,15 @@ class PortfolioOptimizer:
         price_predictions = {}
         if self.lstm_predictor is not None:
             try:
-                recent_data = self.historical_data[
-                    self.historical_data['Date'] <= current_date
-                ].tail(1000)  # Get recent data for predictions
+                # Efficient per-ticker data extraction using boolean indexing
+                mask = self.historical_data['Date'] <= current_date
+                filtered_data = self.historical_data[mask]
+                
+                # Get last 80 points per ticker (ensures 60+ for prediction)
+                ticker_mask = filtered_data['Ticker'].isin(self.stock_symbols)
+                recent_data = (filtered_data[ticker_mask]
+                             .groupby('Ticker', group_keys=False)
+                             .tail(80))
                 
                 price_predictions = self.lstm_predictor.predict_stock_prices(
                     recent_data, self.stock_symbols
