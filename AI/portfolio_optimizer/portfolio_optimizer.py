@@ -98,18 +98,23 @@ class PortfolioOptimizer:
             
             # Fallback: fetch fresh data directly
             try:
+                print("🔄 Fallback: Fetching fresh 5-year data...")
                 fresh_data = self.data_loader.fetch_fresh_data(self.stock_symbols, period="5y")
                 if not fresh_data.empty:
-                    fresh_data.to_csv(self.historical_data_path, index=False)
-                    self.historical_data = load_feature_engineered_data(self.historical_data_path)
+                    print("🔧 Applying feature engineering to fallback data...")
+                    self.historical_data = self._apply_feature_engineering(fresh_data)
                     
-                    # Filter for selected stocks  
-                    self.historical_data = self.historical_data[
-                        self.historical_data['Ticker'].isin(self.stock_symbols)
-                    ].copy()
-                    
-                    print(f"Fetched fresh data with {len(self.historical_data)} records")
-                    print(f"Date range: {self.historical_data['Date'].min()} to {self.historical_data['Date'].max()}")
+                    if self.historical_data is not None and not self.historical_data.empty:
+                        # Save both raw and engineered data
+                        fresh_data.to_csv(self.historical_data_path, index=False)
+                        engineered_path = self.historical_data_path.replace('.csv', '_engineered.csv')
+                        self.historical_data.to_csv(engineered_path, index=False)
+                        
+                        print(f"✅ Fetched and engineered data: {len(self.historical_data)} records")
+                        print(f"📊 Date range: {self.historical_data['Date'].min()} to {self.historical_data['Date'].max()}")
+                        print(f"📈 Features: {len([c for c in self.historical_data.columns if c not in ['Date', 'Ticker']])}")
+                    else:
+                        print("❌ Feature engineering failed on fallback data")
                 else:
                     # Create dummy data for testing
                     self._create_dummy_data()
@@ -160,6 +165,97 @@ class PortfolioOptimizer:
         
         self.historical_data = pd.DataFrame(data)
         print(f"Created dummy data with {len(self.historical_data)} records")
+    
+    def _apply_feature_engineering(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Apply comprehensive feature engineering to raw OHLCV data"""
+        print(f"🔧 Starting feature engineering on {len(df)} records...")
+        
+        engineered_data = []
+        
+        for ticker in df['Ticker'].unique():
+            ticker_data = df[df['Ticker'] == ticker].sort_values('Date').copy()
+            
+            if len(ticker_data) < 30:  # Need minimum data for technical indicators
+                print(f"⚠️  {ticker}: Insufficient data for feature engineering ({len(ticker_data)} days)")
+                continue
+            
+            print(f"🔨 Engineering features for {ticker} ({len(ticker_data)} days)")
+            
+            # Price-based features
+            ticker_data['Price_Change'] = ticker_data['Adj Close'].pct_change()
+            ticker_data['High_Low_Pct'] = (ticker_data['High'] - ticker_data['Low']) / ticker_data['Close']
+            ticker_data['Open_Close_Pct'] = (ticker_data['Close'] - ticker_data['Open']) / ticker_data['Open']
+            
+            # Moving averages (different windows)
+            for window in [5, 10, 20, 50]:
+                if len(ticker_data) >= window:
+                    ticker_data[f'MA_{window}'] = ticker_data['Adj Close'].rolling(window=window).mean()
+                    ticker_data[f'MA_{window}_ratio'] = ticker_data['Adj Close'] / ticker_data[f'MA_{window}']
+            
+            # Volatility features
+            ticker_data['Volatility_5'] = ticker_data['Price_Change'].rolling(window=5).std()
+            ticker_data['Volatility_20'] = ticker_data['Price_Change'].rolling(window=20).std()
+            
+            # Volume features
+            ticker_data['Volume_MA_10'] = ticker_data['Volume'].rolling(window=10).mean()
+            ticker_data['Volume_Ratio'] = ticker_data['Volume'] / ticker_data['Volume_MA_10']
+            
+            # Technical indicators
+            # RSI (Relative Strength Index)
+            delta = ticker_data['Adj Close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            ticker_data['RSI'] = 100 - (100 / (1 + rs))
+            
+            # MACD
+            ema_12 = ticker_data['Adj Close'].ewm(span=12).mean()
+            ema_26 = ticker_data['Adj Close'].ewm(span=26).mean()
+            ticker_data['MACD'] = ema_12 - ema_26
+            ticker_data['MACD_Signal'] = ticker_data['MACD'].ewm(span=9).mean()
+            ticker_data['MACD_Histogram'] = ticker_data['MACD'] - ticker_data['MACD_Signal']
+            
+            # Bollinger Bands
+            ticker_data['BB_Middle'] = ticker_data['Adj Close'].rolling(window=20).mean()
+            bb_std = ticker_data['Adj Close'].rolling(window=20).std()
+            ticker_data['BB_Upper'] = ticker_data['BB_Middle'] + (bb_std * 2)
+            ticker_data['BB_Lower'] = ticker_data['BB_Middle'] - (bb_std * 2)
+            ticker_data['BB_Position'] = (ticker_data['Adj Close'] - ticker_data['BB_Lower']) / (ticker_data['BB_Upper'] - ticker_data['BB_Lower'])
+            
+            # Lag features (previous day values)
+            for col in ['Adj Close', 'Volume', 'Price_Change']:
+                if col in ticker_data.columns:
+                    ticker_data[f'{col}_Lag1'] = ticker_data[col].shift(1)
+                    ticker_data[f'{col}_Lag2'] = ticker_data[col].shift(2)
+            
+            # Clean up any infinite or extremely large values
+            ticker_data = ticker_data.replace([np.inf, -np.inf], np.nan)
+            
+            # Forward fill then backward fill NaN values
+            ticker_data = ticker_data.fillna(method='ffill').fillna(method='bfill')
+            
+            # Remove any remaining NaN rows (usually the first few rows due to technical indicators)
+            ticker_data = ticker_data.dropna()
+            
+            if len(ticker_data) > 0:
+                engineered_data.append(ticker_data)
+                print(f"✅ {ticker}: {len(ticker_data)} records with engineered features")
+            else:
+                print(f"❌ {ticker}: No data remaining after feature engineering")
+        
+        if not engineered_data:
+            print("💥 No data survived feature engineering!")
+            return pd.DataFrame()
+        
+        # Combine all ticker data
+        final_data = pd.concat(engineered_data, ignore_index=True)
+        final_data = final_data.sort_values(['Ticker', 'Date']).reset_index(drop=True)
+        
+        feature_count = len([col for col in final_data.columns if col not in ['Date', 'Ticker']])
+        print(f"🎉 Feature engineering complete: {len(final_data)} records with {feature_count} features")
+        print(f"📊 Tickers processed: {final_data['Ticker'].nunique()}")
+        
+        return final_data
     
     def initialize_lstm_predictor(self, 
                                 sequence_length: int = 60,
@@ -217,11 +313,24 @@ class PortfolioOptimizer:
         if self.historical_data is None or self.historical_data.empty:
             print("No historical data available, fetching fresh data...")
             try:
+                print("📈 Fetching 5 years of historical data...")
                 fresh_data = self.data_loader.fetch_fresh_data(self.stock_symbols, period="5y")
                 if not fresh_data.empty:
+                    print(f"💾 Saving raw data to {self.historical_data_path}")
                     fresh_data.to_csv(self.historical_data_path, index=False)
-                    from utils.data_loader import load_feature_engineered_data
-                    self.historical_data = load_feature_engineered_data(self.historical_data_path)
+                    
+                    print("🔧 Applying feature engineering...")
+                    # Apply feature engineering to the fresh data
+                    engineered_data = self._apply_feature_engineering(fresh_data)
+                    
+                    # Save the feature-engineered data
+                    engineered_path = self.historical_data_path.replace('.csv', '_engineered.csv')
+                    engineered_data.to_csv(engineered_path, index=False)
+                    print(f"💾 Saved feature-engineered data to {engineered_path}")
+                    
+                    # Update the path to point to engineered data
+                    self.historical_data_path = engineered_path
+                    self.historical_data = engineered_data
                     return True
             except Exception as e:
                 print(f"Failed to fetch fresh data: {e}")
@@ -247,22 +356,26 @@ class PortfolioOptimizer:
             )
             
             if not extended_data.empty:
-                # Combine with existing data
+                print("🔀 Combining with existing data...")
+                # Combine with existing raw data first
                 combined = pd.concat([self.historical_data, extended_data], ignore_index=True)
                 combined = combined.drop_duplicates(subset=['Ticker', 'Date'], keep='last')
                 combined = combined.sort_values(['Ticker', 'Date']).reset_index(drop=True)
                 
-                # Save and reload with feature engineering
-                combined.to_csv(self.historical_data_path, index=False)
-                from utils.data_loader import load_feature_engineered_data
-                self.historical_data = load_feature_engineered_data(self.historical_data_path)
+                print("🔧 Applying feature engineering to combined data...")
+                # Apply feature engineering to combined data
+                self.historical_data = self._apply_feature_engineering(combined)
                 
-                # Filter for selected stocks
-                self.historical_data = self.historical_data[
-                    self.historical_data['Ticker'].isin(self.stock_symbols)
-                ].copy()
-                
-                print(f"Extended data loaded: {len(self.historical_data)} records")
+                if self.historical_data is not None and not self.historical_data.empty:
+                    # Save both raw and engineered versions
+                    combined.to_csv(self.historical_data_path, index=False)
+                    engineered_path = self.historical_data_path.replace('.csv', '_engineered.csv')
+                    self.historical_data.to_csv(engineered_path, index=False)
+                    
+                    print(f"✅ Extended data processed: {len(self.historical_data)} records")
+                    print(f"📈 Features: {len([c for c in self.historical_data.columns if c not in ['Date', 'Ticker']])}")
+                else:
+                    print("❌ Feature engineering failed on extended data")
                 return True
             else:
                 print("No extended data could be fetched")
