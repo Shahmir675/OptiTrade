@@ -115,40 +115,127 @@ class LSTMPredictor:
         
     def prepare_data(self, df: pd.DataFrame, target_col: str = 'Adj Close') -> Tuple[np.ndarray, np.ndarray, List[str]]:
         """
-        Prepare data for LSTM training
+        Prepare data for LSTM training with robust data validation
         """
+        print(f"🧹 Starting data preparation...")
+        print(f"📊 Input data shape: {df.shape}")
+        
         # Get feature columns (excluding non-numeric columns)
         feature_cols = [col for col in df.columns if col not in ['Date', 'Ticker', 'symbol']]
         
+        # Validate target column exists
+        if target_col not in feature_cols:
+            print(f"❌ Target column '{target_col}' not found in features: {feature_cols}")
+            raise ValueError(f"Target column '{target_col}' not found in data")
+        
+        # Check for data quality
+        print(f"🔍 Checking data quality...")
+        total_nulls = df[feature_cols].isnull().sum().sum()
+        total_infs = np.isinf(df[feature_cols].select_dtypes(include=[np.number])).sum().sum()
+        print(f"⚠️  Found {total_nulls} null values and {total_infs} infinite values")
+        
         X, y = [], []
         stocks_processed = []
+        skipped_stocks = []
         
         # Process each stock individually
         for ticker in df['Ticker'].unique():
-            ticker_data = df[df['Ticker'] == ticker].sort_values('Date')
+            ticker_data = df[df['Ticker'] == ticker].sort_values('Date').copy()
             
             if len(ticker_data) < self.sequence_length + self.prediction_horizon:
+                skipped_stocks.append(f"{ticker} (insufficient data: {len(ticker_data)})")
+                continue
+            
+            # Data cleaning for this ticker
+            ticker_features = ticker_data[feature_cols].copy()
+            
+            # Handle missing values
+            null_count = ticker_features.isnull().sum().sum()
+            if null_count > 0:
+                print(f"⚠️  {ticker}: Forward-filling {null_count} null values")
+                ticker_features = ticker_features.fillna(method='ffill').fillna(method='bfill')
+            
+            # Handle infinite values
+            inf_mask = np.isinf(ticker_features.select_dtypes(include=[np.number]))
+            inf_count = inf_mask.sum().sum()
+            if inf_count > 0:
+                print(f"⚠️  {ticker}: Clipping {inf_count} infinite values")
+                ticker_features = ticker_features.replace([np.inf, -np.inf], np.nan)
+                ticker_features = ticker_features.fillna(method='ffill').fillna(method='bfill')
+            
+            # Final validation - check for remaining issues
+            if ticker_features.isnull().any().any():
+                print(f"❌ {ticker}: Still has null values after cleaning, skipping")
+                skipped_stocks.append(f"{ticker} (uncleaned nulls)")
+                continue
+                
+            ticker_values = ticker_features.values
+            
+            # Check for extreme values that could break scaling
+            if np.any(np.abs(ticker_values) > 1e10):
+                print(f"❌ {ticker}: Extreme values detected, skipping")
+                skipped_stocks.append(f"{ticker} (extreme values)")
                 continue
             
             # Scale features for this ticker
             if ticker not in self.feature_scalers:
                 self.feature_scalers[ticker] = MinMaxScaler(feature_range=(0, 1))
+            
+            try:
+                ticker_features_scaled = self.feature_scalers[ticker].fit_transform(ticker_values)
                 
-            ticker_features = ticker_data[feature_cols].values
-            ticker_features_scaled = self.feature_scalers[ticker].fit_transform(ticker_features)
+                # Validate scaling worked
+                if np.any(np.isnan(ticker_features_scaled)) or np.any(np.isinf(ticker_features_scaled)):
+                    print(f"❌ {ticker}: Scaling produced NaN/inf values, skipping")
+                    skipped_stocks.append(f"{ticker} (scaling failed)")
+                    continue
+                    
+            except Exception as e:
+                print(f"❌ {ticker}: Scaling error: {e}")
+                skipped_stocks.append(f"{ticker} (scaling error)")
+                continue
             
             # Create sequences
-            for i in range(len(ticker_features_scaled) - self.sequence_length - self.prediction_horizon + 1):
-                X.append(ticker_features_scaled[i:i + self.sequence_length])
-                
-                # Target is the scaled price at prediction horizon
-                target_idx = feature_cols.index(target_col)
-                y.append(ticker_features_scaled[i + self.sequence_length + self.prediction_horizon - 1, target_idx])
+            target_idx = feature_cols.index(target_col)
+            sequences_added = 0
             
-            stocks_processed.append(ticker)
+            for i in range(len(ticker_features_scaled) - self.sequence_length - self.prediction_horizon + 1):
+                sequence = ticker_features_scaled[i:i + self.sequence_length]
+                target = ticker_features_scaled[i + self.sequence_length + self.prediction_horizon - 1, target_idx]
+                
+                # Validate sequence and target
+                if np.any(np.isnan(sequence)) or np.any(np.isinf(sequence)) or np.isnan(target) or np.isinf(target):
+                    continue
+                    
+                X.append(sequence)
+                y.append(target)
+                sequences_added += 1
+            
+            if sequences_added > 0:
+                stocks_processed.append(ticker)
+                print(f"✅ {ticker}: {sequences_added} sequences added")
+            else:
+                print(f"❌ {ticker}: No valid sequences created")
+                skipped_stocks.append(f"{ticker} (no valid sequences)")
+        
+        if skipped_stocks:
+            print(f"⚠️  Skipped {len(skipped_stocks)} stocks: {skipped_stocks[:5]}{'...' if len(skipped_stocks) > 5 else ''}")
         
         self.trained_stocks = stocks_processed
-        return np.array(X), np.array(y), feature_cols
+        
+        if len(X) == 0:
+            print(f"💥 No valid training data created!")
+            return np.array([]), np.array([]), feature_cols
+            
+        X_array = np.array(X)
+        y_array = np.array(y)
+        
+        # Final validation
+        print(f"🎯 Final data shapes: X={X_array.shape}, y={y_array.shape}")
+        print(f"📈 Processed {len(stocks_processed)} stocks with {len(X_array)} total sequences")
+        print(f"🔢 Data ranges - X: [{np.min(X_array):.4f}, {np.max(X_array):.4f}], y: [{np.min(y_array):.4f}, {np.max(y_array):.4f}]")
+        
+        return X_array, y_array, feature_cols
     
     def build_model(self, input_size: int):
         """Build the LSTM model"""
@@ -194,43 +281,100 @@ class LSTMPredictor:
         train_losses = []
         val_losses = []
         
-        print(f"Training LSTM model on {len(X_train)} samples...")
+        print(f"🚀 Training LSTM model on {len(X_train)} samples...")
+        print(f"📊 Validation split: {len(X_val)} samples")
+        
+        # Validate input data doesn't contain NaN/inf
+        if torch.isnan(X_train).any() or torch.isinf(X_train).any():
+            raise ValueError("Training data contains NaN or infinite values")
+        if torch.isnan(y_train).any() or torch.isinf(y_train).any():
+            raise ValueError("Training targets contain NaN or infinite values")
         
         pbar = tqdm(range(epochs), desc="LSTM Training", unit="epoch")
         for epoch in pbar:
             # Training phase
             self.model.train()
             train_loss = 0
+            batch_count = 0
             
             for i in range(0, len(X_train), batch_size):
                 batch_X = X_train[i:i + batch_size]
                 batch_y = y_train[i:i + batch_size]
                 
+                # Validate batch doesn't contain NaN/inf
+                if torch.isnan(batch_X).any() or torch.isinf(batch_X).any():
+                    print(f"⚠️  Skipping batch {i//batch_size} due to NaN/inf in features")
+                    continue
+                if torch.isnan(batch_y).any() or torch.isinf(batch_y).any():
+                    print(f"⚠️  Skipping batch {i//batch_size} due to NaN/inf in targets")
+                    continue
+                
                 optimizer.zero_grad()
                 outputs = self.model(batch_X)
+                
+                # Check for NaN in outputs
+                if torch.isnan(outputs).any() or torch.isinf(outputs).any():
+                    print(f"💥 Model outputs contain NaN/inf at epoch {epoch}, batch {i//batch_size}")
+                    print(f"🔍 Batch X stats: min={torch.min(batch_X):.6f}, max={torch.max(batch_X):.6f}")
+                    print(f"🔍 Outputs stats: min={torch.min(outputs):.6f}, max={torch.max(outputs):.6f}")
+                    break
+                
                 loss = criterion(outputs.squeeze(), batch_y)
+                
+                # Check for NaN loss
+                if torch.isnan(loss) or torch.isinf(loss):
+                    print(f"💥 Loss is NaN/inf at epoch {epoch}, batch {i//batch_size}")
+                    print(f"🔍 Outputs: {outputs.squeeze()[:5]}")
+                    print(f"🔍 Targets: {batch_y[:5]}")
+                    break
+                
                 loss.backward()
+                
+                # Check for NaN gradients
+                nan_grads = any(torch.isnan(p.grad).any() if p.grad is not None else False 
+                               for p in self.model.parameters())
+                if nan_grads:
+                    print(f"💥 NaN gradients detected at epoch {epoch}, batch {i//batch_size}")
+                    break
                 
                 # Gradient clipping
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 
                 optimizer.step()
                 train_loss += loss.item()
+                batch_count += 1
+            
+            # Check if training should stop due to NaN
+            if batch_count == 0:
+                print(f"💥 No valid batches processed in epoch {epoch}. Stopping training.")
+                break
             
             # Validation phase
             self.model.eval()
             val_loss = 0
+            val_batch_count = 0
             with torch.no_grad():
                 for i in range(0, len(X_val), batch_size):
                     batch_X = X_val[i:i + batch_size]
                     batch_y = y_val[i:i + batch_size]
                     
                     outputs = self.model(batch_X)
+                    if torch.isnan(outputs).any() or torch.isinf(outputs).any():
+                        continue
+                        
                     loss = criterion(outputs.squeeze(), batch_y)
+                    if torch.isnan(loss) or torch.isinf(loss):
+                        continue
+                        
                     val_loss += loss.item()
+                    val_batch_count += 1
             
-            avg_train_loss = train_loss / (len(X_train) // batch_size)
-            avg_val_loss = val_loss / (len(X_val) // batch_size)
+            if batch_count > 0 and val_batch_count > 0:
+                avg_train_loss = train_loss / batch_count
+                avg_val_loss = val_loss / val_batch_count
+            else:
+                print(f"💥 Invalid loss calculation at epoch {epoch}")
+                break
             
             train_losses.append(avg_train_loss)
             val_losses.append(avg_val_loss)
