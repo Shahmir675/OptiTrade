@@ -69,22 +69,54 @@ class PortfolioOptimizer:
         )
         print(f"Selected {len(self.stock_symbols)} diversified stock candidates")
         
-        # Load historical data
+        # Load and update historical data
         try:
-            self.historical_data = load_feature_engineered_data(self.historical_data_path)
+            # First, try to update historical data with fresh data from yfinance
+            print("Updating historical data with fresh market data...")
+            updated_data = self.data_loader.update_historical_data(
+                symbols=self.stock_symbols, 
+                save_path=self.historical_data_path
+            )
             
-            # Filter for selected stocks
-            self.historical_data = self.historical_data[
-                self.historical_data['Ticker'].isin(self.stock_symbols)
-            ].copy()
-            
-            print(f"Loaded historical data with {len(self.historical_data)} records")
-            print(f"Date range: {self.historical_data['Date'].min()} to {self.historical_data['Date'].max()}")
+            if not updated_data.empty:
+                # Apply feature engineering to the updated data
+                self.historical_data = load_feature_engineered_data(self.historical_data_path)
+                
+                # Filter for selected stocks
+                self.historical_data = self.historical_data[
+                    self.historical_data['Ticker'].isin(self.stock_symbols)
+                ].copy()
+                
+                print(f"Loaded historical data with {len(self.historical_data)} records")
+                print(f"Date range: {self.historical_data['Date'].min()} to {self.historical_data['Date'].max()}")
+            else:
+                raise ValueError("No historical data available")
             
         except Exception as e:
-            print(f"Error loading historical data: {e}")
-            # Create dummy data for testing
-            self._create_dummy_data()
+            print(f"Error loading/updating historical data: {e}")
+            print("Falling back to fresh data fetch...")
+            
+            # Fallback: fetch fresh data directly
+            try:
+                fresh_data = self.data_loader.fetch_fresh_data(self.stock_symbols, period="5y")
+                if not fresh_data.empty:
+                    fresh_data.to_csv(self.historical_data_path, index=False)
+                    self.historical_data = load_feature_engineered_data(self.historical_data_path)
+                    
+                    # Filter for selected stocks  
+                    self.historical_data = self.historical_data[
+                        self.historical_data['Ticker'].isin(self.stock_symbols)
+                    ].copy()
+                    
+                    print(f"Fetched fresh data with {len(self.historical_data)} records")
+                    print(f"Date range: {self.historical_data['Date'].min()} to {self.historical_data['Date'].max()}")
+                else:
+                    # Create dummy data for testing
+                    self._create_dummy_data()
+            except Exception as e2:
+                print(f"Fresh data fetch also failed: {e2}")
+                # Create dummy data for testing
+                self._create_dummy_data()
     
     def _create_dummy_data(self):
         """Create dummy data for testing purposes"""
@@ -137,6 +169,11 @@ class PortfolioOptimizer:
         """Initialize and train LSTM predictor"""
         print("Initializing LSTM predictor...")
         
+        # Ensure we have sufficient data before training
+        min_required = sequence_length + 20  # Extra buffer for training
+        if not self.ensure_sufficient_data(min_required):
+            print(f"Warning: Unable to ensure sufficient data (need {min_required} days per stock)")
+        
         self.lstm_predictor = LSTMPredictor(
             sequence_length=sequence_length,
             hidden_size=hidden_size,
@@ -167,6 +204,72 @@ class PortfolioOptimizer:
             
         except Exception as e:
             print(f"LSTM training failed: {e}")
+            return False
+
+    def ensure_sufficient_data(self, min_days_required: int = 120) -> bool:
+        """
+        Ensure we have sufficient historical data for LSTM training.
+        If not, fetch more data from yfinance.
+        
+        Args:
+            min_days_required: Minimum number of days of data required per stock
+        """
+        if self.historical_data is None or self.historical_data.empty:
+            print("No historical data available, fetching fresh data...")
+            try:
+                fresh_data = self.data_loader.fetch_fresh_data(self.stock_symbols, period="5y")
+                if not fresh_data.empty:
+                    fresh_data.to_csv(self.historical_data_path, index=False)
+                    from utils.data_loader import load_feature_engineered_data
+                    self.historical_data = load_feature_engineered_data(self.historical_data_path)
+                    return True
+            except Exception as e:
+                print(f"Failed to fetch fresh data: {e}")
+                return False
+        
+        # Check data sufficiency per ticker
+        ticker_counts = self.historical_data['Ticker'].value_counts()
+        insufficient_tickers = ticker_counts[ticker_counts < min_days_required]
+        
+        if len(insufficient_tickers) == 0:
+            print("All tickers have sufficient data")
+            return True
+            
+        print(f"Found {len(insufficient_tickers)} tickers with insufficient data (< {min_days_required} days)")
+        print(f"Insufficient tickers: {insufficient_tickers.index[:5].tolist()}...")
+        
+        # Fetch more historical data for insufficient tickers
+        try:
+            print("Fetching extended historical data...")
+            extended_data = self.data_loader.fetch_fresh_data(
+                symbols=list(insufficient_tickers.index), 
+                period="5y"  # Get 5 years of data
+            )
+            
+            if not extended_data.empty:
+                # Combine with existing data
+                combined = pd.concat([self.historical_data, extended_data], ignore_index=True)
+                combined = combined.drop_duplicates(subset=['Ticker', 'Date'], keep='last')
+                combined = combined.sort_values(['Ticker', 'Date']).reset_index(drop=True)
+                
+                # Save and reload with feature engineering
+                combined.to_csv(self.historical_data_path, index=False)
+                from utils.data_loader import load_feature_engineered_data
+                self.historical_data = load_feature_engineered_data(self.historical_data_path)
+                
+                # Filter for selected stocks
+                self.historical_data = self.historical_data[
+                    self.historical_data['Ticker'].isin(self.stock_symbols)
+                ].copy()
+                
+                print(f"Extended data loaded: {len(self.historical_data)} records")
+                return True
+            else:
+                print("No extended data could be fetched")
+                return False
+                
+        except Exception as e:
+            print(f"Failed to fetch extended data: {e}")
             return False
     
     def initialize_ppo_agent(self, 

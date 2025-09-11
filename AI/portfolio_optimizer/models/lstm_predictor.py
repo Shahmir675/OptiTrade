@@ -298,10 +298,10 @@ class LSTMPredictor:
                 continue
             
             # Get recent data for the stock
-            stock_data = df[df['Ticker'] == symbol].tail(self.sequence_length)
+            stock_data = df[df['Ticker'] == symbol].sort_values('Date').tail(self.sequence_length)
             
             if len(stock_data) < self.sequence_length:
-                print(f"Warning: Insufficient data for {symbol}. Skipping.")
+                print(f"Warning: Insufficient data for {symbol} ({len(stock_data)}/{self.sequence_length} points). Skipping.")
                 continue
             
             # Prepare features

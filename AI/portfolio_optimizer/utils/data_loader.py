@@ -7,6 +7,8 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Optional
 import warnings
+from datetime import datetime, timedelta
+import yfinance as yf
 warnings.filterwarnings('ignore')
 
 
@@ -93,6 +95,59 @@ class StockDataLoader:
             
         return top_stocks
     
+    def fetch_fresh_data(self, symbols: List[str], period: str = "2y", interval: str = "1d") -> pd.DataFrame:
+        """
+        Fetch fresh historical data from yfinance for given symbols
+        
+        Args:
+            symbols: List of stock symbols to fetch
+            period: Data period (1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max)
+            interval: Data interval (1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo)
+        """
+        print(f"Fetching fresh data for {len(symbols)} symbols...")
+        all_data = []
+        failed_symbols = []
+        
+        for symbol in symbols:
+            try:
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(period=period, interval=interval)
+                
+                if not data.empty:
+                    # Reset index to get Date as a column
+                    data = data.reset_index()
+                    data['Ticker'] = symbol
+                    
+                    # Standardize column names
+                    data = data.rename(columns={
+                        'Date': 'Date',
+                        'Open': 'Open',
+                        'High': 'High', 
+                        'Low': 'Low',
+                        'Close': 'Close',
+                        'Adj Close': 'Adj Close',
+                        'Volume': 'Volume'
+                    })
+                    
+                    all_data.append(data[['Date', 'Ticker', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']])
+                else:
+                    failed_symbols.append(symbol)
+                    
+            except Exception as e:
+                print(f"Failed to fetch data for {symbol}: {e}")
+                failed_symbols.append(symbol)
+        
+        if failed_symbols:
+            print(f"Failed to fetch data for {len(failed_symbols)} symbols: {failed_symbols[:5]}{'...' if len(failed_symbols) > 5 else ''}")
+        
+        if all_data:
+            combined_data = pd.concat(all_data, ignore_index=True)
+            combined_data['Date'] = pd.to_datetime(combined_data['Date'])
+            print(f"Successfully fetched {len(combined_data)} records")
+            return combined_data
+        else:
+            return pd.DataFrame()
+
     def load_historical_data(self) -> pd.DataFrame:
         """Load historical price data"""
         if self.historical_csv_path:
@@ -101,6 +156,53 @@ class StockDataLoader:
             return self.historical_data
         else:
             raise ValueError("Historical data path not provided")
+    
+    def update_historical_data(self, symbols: List[str], save_path: str = None) -> pd.DataFrame:
+        """
+        Update existing historical data with fresh data from yfinance
+        """
+        # Load existing data
+        existing_data = self.load_historical_data() if self.historical_csv_path else pd.DataFrame()
+        
+        if not existing_data.empty:
+            # Find the most recent date in existing data
+            latest_date = existing_data['Date'].max()
+            days_behind = (datetime.now() - latest_date).days
+            
+            print(f"Existing data ends at {latest_date.strftime('%Y-%m-%d')}, {days_behind} days behind")
+            
+            if days_behind <= 1:
+                print("Data is already up to date")
+                return existing_data
+        
+        # Fetch fresh data for the symbols
+        fresh_data = self.fetch_fresh_data(symbols, period="1y")
+        
+        if fresh_data.empty:
+            print("No fresh data fetched, returning existing data")
+            return existing_data if not existing_data.empty else pd.DataFrame()
+        
+        if not existing_data.empty:
+            # Merge with existing data, removing duplicates
+            # Keep fresh data for overlapping dates
+            combined = pd.concat([existing_data, fresh_data], ignore_index=True)
+            
+            # Remove duplicates, keeping the latest (fresh) data
+            combined = combined.sort_values(['Ticker', 'Date'])
+            combined = combined.drop_duplicates(subset=['Ticker', 'Date'], keep='last')
+        else:
+            combined = fresh_data
+        
+        # Sort by ticker and date
+        combined = combined.sort_values(['Ticker', 'Date']).reset_index(drop=True)
+        
+        # Save updated data
+        if save_path:
+            combined.to_csv(save_path, index=False)
+            print(f"Updated historical data saved to {save_path}")
+        
+        self.historical_data = combined
+        return combined
     
     def get_stock_info(self, symbol: str) -> Dict:
         """Get detailed info for a specific stock"""
