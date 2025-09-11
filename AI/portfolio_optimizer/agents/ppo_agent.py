@@ -74,18 +74,39 @@ class ActorCritic(nn.Module):
     def _init_weights(self, module):
         """Initialize network weights"""
         if isinstance(module, nn.Linear):
-            torch.nn.init.orthogonal_(module.weight, gain=0.01)
+            # Use more stable initialization
+            torch.nn.init.orthogonal_(module.weight, gain=1.0)
             torch.nn.init.constant_(module.bias, 0)
     
     def forward(self, state):
         """Forward pass through the network"""
+        # Check input for NaN/inf
+        if torch.isnan(state).any() or torch.isinf(state).any():
+            print(f"🔥 WARNING: Input state contains NaN/inf values")
+            state = torch.nan_to_num(state, nan=0.0, posinf=1.0, neginf=-1.0)
+        
         features = self.shared_features(state)
+        
+        # Check features for NaN/inf
+        if torch.isnan(features).any() or torch.isinf(features).any():
+            print(f"🔥 WARNING: Features contain NaN/inf values")
+            features = torch.nan_to_num(features, nan=0.0, posinf=1.0, neginf=-1.0)
         
         # Actor output (action probabilities/weights)
         action_probs = self.actor(features)
         
         # Critic output (state value)
         value = self.critic(features)
+        
+        # Check outputs for NaN/inf and fix them
+        if torch.isnan(action_probs).any() or torch.isinf(action_probs).any():
+            print(f"🔥 WARNING: Actor output contains NaN/inf values, resetting to uniform")
+            uniform_probs = torch.full_like(action_probs, 1.0 / action_probs.shape[-1])
+            action_probs = uniform_probs
+            
+        if torch.isnan(value).any() or torch.isinf(value).any():
+            print(f"🔥 WARNING: Critic output contains NaN/inf values, resetting to zero")
+            value = torch.zeros_like(value)
         
         return action_probs, value
     
@@ -114,7 +135,19 @@ class ActorCritic(nn.Module):
         
         # Calculate action log probabilities
         # Using Dirichlet distribution for portfolio weights
-        alpha = action_probs * 10 + 1e-8  # Convert to Dirichlet parameters
+        # Ensure action_probs are valid before creating Dirichlet parameters
+        action_probs = torch.clamp(action_probs, min=1e-8, max=1.0)
+        action_probs = action_probs / action_probs.sum(dim=-1, keepdim=True)  # Renormalize
+        
+        # Convert to Dirichlet parameters (must be > 0)
+        alpha = action_probs * 10 + 1.0  # Use 1.0 instead of 1e-8 for numerical stability
+        alpha = torch.clamp(alpha, min=1e-6)  # Ensure positive values
+        
+        # Additional safety check for NaN/inf in alpha
+        if torch.isnan(alpha).any() or torch.isinf(alpha).any():
+            print(f"🔥 WARNING: Dirichlet alpha contains NaN/inf, using uniform distribution")
+            alpha = torch.ones_like(alpha)
+            
         dist = torch.distributions.Dirichlet(alpha)
         
         log_probs = dist.log_prob(actions)
