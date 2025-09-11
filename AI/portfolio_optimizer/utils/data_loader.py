@@ -9,6 +9,7 @@ from typing import Dict, List, Tuple, Optional
 import warnings
 from datetime import datetime, timedelta
 import yfinance as yf
+import curl_cffi.requests
 warnings.filterwarnings('ignore')
 
 
@@ -22,6 +23,9 @@ class StockDataLoader:
         self.historical_csv_path = historical_csv_path
         self.stocks_info = None
         self.historical_data = None
+        
+        # Setup proxy and session for yfinance
+        self._setup_yfinance_proxy()
         
     def load_stocks_metadata(self) -> Dict:
         """Load stocks metadata from JSON file"""
@@ -110,7 +114,8 @@ class StockDataLoader:
         
         for symbol in symbols:
             try:
-                ticker = yf.Ticker(symbol)
+                # Use session if available for better reliability
+                ticker = yf.Ticker(symbol, session=self.session)
                 data = ticker.history(period=period, interval=interval)
                 
                 if not data.empty:
@@ -251,6 +256,25 @@ class StockDataLoader:
                     break
         
         return candidates[:target_stocks]
+    
+    def _setup_yfinance_proxy(self):
+        """Setup proxy configuration for yfinance to avoid rate limits"""
+        try:
+            # Setup SOCKS5 proxy via Tor (same as in fetch_nasdaq.py)
+            proxy_config = {
+                "http": "socks5h://127.0.0.1:9050", 
+                "https": "socks5h://127.0.0.1:9050"
+            }
+            yf.set_config(proxy=proxy_config)
+            
+            # Create session with curl_cffi for better compatibility
+            self.session = curl_cffi.requests.Session(impersonate="chrome")
+            print("Proxy configuration applied to yfinance")
+            
+        except Exception as e:
+            print(f"Warning: Failed to setup proxy for yfinance: {e}")
+            # Fallback to default session
+            self.session = None
 
 
 def load_feature_engineered_data(csv_path: str) -> pd.DataFrame:
