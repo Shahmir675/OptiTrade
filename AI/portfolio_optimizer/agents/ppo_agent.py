@@ -382,8 +382,22 @@ class PPOBuffer:
         self.rewards[self.ptr] = torch.FloatTensor([reward]).to(self.device)
         self.next_states[self.ptr] = torch.FloatTensor(next_state).to(self.device)
         self.dones[self.ptr] = torch.FloatTensor([done]).to(self.device)
-        self.values[self.ptr] = torch.FloatTensor([value]).to(self.device)
-        self.log_probs[self.ptr] = torch.FloatTensor([log_prob]).to(self.device)
+        
+        # Handle value conversion more robustly
+        if torch.is_tensor(value):
+            self.values[self.ptr] = value.clone().detach().to(self.device)
+        elif isinstance(value, np.ndarray):
+            self.values[self.ptr] = torch.FloatTensor([value.item()]).to(self.device)
+        else:
+            self.values[self.ptr] = torch.FloatTensor([value]).to(self.device)
+        
+        # Handle log_prob conversion more robustly
+        if torch.is_tensor(log_prob):
+            self.log_probs[self.ptr] = log_prob.clone().detach().to(self.device)
+        elif isinstance(log_prob, np.ndarray):
+            self.log_probs[self.ptr] = torch.FloatTensor([log_prob.item()]).to(self.device)
+        else:
+            self.log_probs[self.ptr] = torch.FloatTensor([log_prob]).to(self.device)
         
         self.ptr = (self.ptr + 1) % self.capacity
         self.size = min(self.size + 1, self.capacity)
