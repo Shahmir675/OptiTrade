@@ -140,14 +140,28 @@ class PortfolioOptimizationEnv(gym.Env):
         
         if self.lstm_predictor is not None:
             try:
-                # Get recent data up to current date
-                recent_data = self.stock_data[
-                    self.stock_data['Date'] <= current_date
-                ].tail(self.lookback_window * len(self.stock_symbols))
+                # Get sufficient historical data per stock for LSTM prediction
+                # Need at least sequence_length (60) days per stock
+                min_required = max(self.lstm_predictor.sequence_length + 10, self.lookback_window)
                 
-                lstm_preds = self.lstm_predictor.predict_stock_prices(
-                    recent_data, self.stock_symbols
-                )
+                # Get data up to current date
+                available_data = self.stock_data[self.stock_data['Date'] <= current_date]
+                
+                # Ensure each stock has sufficient data
+                recent_data_per_stock = []
+                for symbol in self.stock_symbols:
+                    symbol_data = available_data[available_data['Ticker'] == symbol].tail(min_required)
+                    if len(symbol_data) >= self.lstm_predictor.sequence_length:
+                        recent_data_per_stock.append(symbol_data)
+                
+                if recent_data_per_stock:
+                    recent_data = pd.concat(recent_data_per_stock, ignore_index=True)
+                    
+                    lstm_preds = self.lstm_predictor.predict_stock_prices(
+                        recent_data, self.stock_symbols, warn_insufficient=False
+                    )
+                else:
+                    lstm_preds = {}
                 
                 for i, symbol in enumerate(self.stock_symbols):
                     if symbol in lstm_preds:

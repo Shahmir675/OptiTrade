@@ -426,15 +426,23 @@ class LSTMPredictor:
             
         return predictions.cpu().numpy()
     
-    def predict_stock_prices(self, df: pd.DataFrame, stock_symbols: List[str]) -> Dict[str, float]:
+    def predict_stock_prices(self, df: pd.DataFrame, stock_symbols: List[str], 
+                           warn_insufficient: bool = False) -> Dict[str, float]:
         """
         Predict future prices for specific stocks
+        
+        Args:
+            df: DataFrame with stock data
+            stock_symbols: List of symbols to predict
+            warn_insufficient: Whether to print warnings for insufficient data
         """
         predictions = {}
+        insufficient_count = 0
         
         # Early exit if no stocks were trained
         if not self.trained_stocks:
-            print("Warning: No stocks were trained. Returning empty predictions.")
+            if warn_insufficient:
+                print("Warning: No stocks were trained. Returning empty predictions.")
             return predictions
         
         for symbol in stock_symbols:
@@ -445,7 +453,9 @@ class LSTMPredictor:
             stock_data = df[df['Ticker'] == symbol].sort_values('Date').tail(self.sequence_length)
             
             if len(stock_data) < self.sequence_length:
-                print(f"Warning: Insufficient data for {symbol} ({len(stock_data)}/{self.sequence_length} points). Skipping.")
+                insufficient_count += 1
+                if warn_insufficient:
+                    print(f"Warning: Insufficient data for {symbol} ({len(stock_data)}/{self.sequence_length} points). Skipping.")
                 continue
             
             # Prepare features
@@ -471,6 +481,10 @@ class LSTMPredictor:
             pred_price = self.feature_scalers[symbol].inverse_transform(dummy_features)[0, 0]
             
             predictions[symbol] = float(pred_price)
+        
+        # Summary logging (only when warnings are enabled)
+        if warn_insufficient and insufficient_count > 0:
+            print(f"📊 LSTM Predictions: {len(predictions)} successful, {insufficient_count} insufficient data")
         
         return predictions
     
