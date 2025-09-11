@@ -240,8 +240,17 @@ class PPOAgent:
         if len(self.buffer) < self.buffer_size:
             return {}
         
-        # Get batch data
+        # Get batch data and ensure they're on the correct device
         states, actions, rewards, next_states, dones, old_values, old_log_probs = self.buffer.get()
+        
+        # Move all tensors to device
+        states = states.to(self.device)
+        actions = actions.to(self.device)
+        rewards = rewards.to(self.device)
+        next_states = next_states.to(self.device)
+        dones = dones.to(self.device)
+        old_values = old_values.to(self.device)
+        old_log_probs = old_log_probs.to(self.device)
         
         # Calculate advantages and returns
         advantages, returns = self._calculate_gae(rewards, old_values, dones)
@@ -331,8 +340,9 @@ class PPOAgent:
         # GAE needs one extra value for bootstrapping, so values should be length n+1
         # where n is the number of steps
         n_steps = len(rewards)
-        advantages = torch.zeros(n_steps)
-        returns = torch.zeros(n_steps)
+        device = values.device if hasattr(values, 'device') else self.device
+        advantages = torch.zeros(n_steps, device=device)
+        returns = torch.zeros(n_steps, device=device)
         gae = 0
         
         # Work backwards from the last timestep
